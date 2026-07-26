@@ -118,7 +118,8 @@ pub trait Tokenizer: Send {
     fn tokenize(&self, text: &str) -> VoxKeyResult<TokenStream>;
 
     /// Tokenize with an explicit context hint.
-    fn tokenize_with_context(&self, text: &str, context: TokenContext) -> VoxKeyResult<TokenStream>;
+    fn tokenize_with_context(&self, text: &str, context: TokenContext)
+    -> VoxKeyResult<TokenStream>;
 
     /// Detect the context of the given text.
     fn detect_context(&self, text: &str) -> TokenContext;
@@ -130,12 +131,15 @@ pub trait Tokenizer: Send {
 /// (camelCase, snake_case, operators, keywords).
 pub struct HeuristicTokenizer {
     /// Regex for prose words (letters, contractions, hyphens)
+    #[allow(dead_code)]
     word_re: Regex,
     /// Regex for code identifiers (camelCase, snake_case)
+    #[allow(dead_code)]
     code_id_re: Regex,
     /// Regex for operators
     operator_re: Regex,
     /// Regex for numbers
+    #[allow(dead_code)]
     number_re: Regex,
 }
 
@@ -145,7 +149,8 @@ impl HeuristicTokenizer {
         Self {
             word_re: Regex::new(r"[a-zA-Z]+(?:[''][a-zA-Z]+)?").unwrap(),
             code_id_re: Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*(?:[A-Z][a-z]+)*").unwrap(),
-            operator_re: Regex::new(r"->|=>|::|\+\+|--|==|!=|<=|>=|&&|\|\||<<|>>|[+\-*/%=<>!&|^~]").unwrap(),
+            operator_re: Regex::new(r"->|=>|::|\+\+|--|==|!=|<=|>=|&&|\|\||<<|>>|[+\-*/%=<>!&|^~]")
+                .unwrap(),
             number_re: Regex::new(r"\d+(?:\.\d+)?").unwrap(),
         }
     }
@@ -153,8 +158,8 @@ impl HeuristicTokenizer {
     /// Check if text contains code-like patterns.
     fn has_code_patterns(&self, text: &str) -> bool {
         let code_indicators = [
-            "->", "=>", "::", "fn ", "let ", "if ", "else", "return",
-            "pub ", "struct", "impl", "match", "while", "for ", "loop",
+            "->", "=>", "::", "fn ", "let ", "if ", "else", "return", "pub ", "struct", "impl",
+            "match", "while", "for ", "loop",
         ];
         code_indicators.iter().any(|&kw| text.contains(kw))
     }
@@ -179,36 +184,43 @@ impl Tokenizer for HeuristicTokenizer {
         self.tokenize_with_context(text, context)
     }
 
-    fn tokenize_with_context(&self, text: &str, _context: TokenContext) -> VoxKeyResult<TokenStream> {
+    fn tokenize_with_context(
+        &self,
+        text: &str,
+        _context: TokenContext,
+    ) -> VoxKeyResult<TokenStream> {
         let mut tokens = Vec::new();
-        let mut pos = 0;
-        let bytes = text.as_bytes();
-        let len = bytes.len();
+        let chars: Vec<(usize, char)> = text.char_indices().collect();
+        let len = chars.len();
+        let mut pos = 0; // character index, not byte index
 
         while pos < len {
+            let (byte_pos, ch) = chars[pos];
+
             // Skip whitespace first
-            if bytes[pos].is_ascii_whitespace() {
+            if ch.is_ascii_whitespace() {
                 let start = pos;
-                while pos < len && bytes[pos].is_ascii_whitespace() {
+                while pos < len && chars[pos].1.is_ascii_whitespace() {
                     pos += 1;
                 }
+                let end_byte = if pos < len { chars[pos].0 } else { text.len() };
                 tokens.push(Token {
-                    text: text[start..pos].to_string(),
-                    offset: start,
-                    length: pos - start,
+                    text: text[chars[start].0..end_byte].to_string(),
+                    offset: chars[start].0,
+                    length: end_byte - chars[start].0,
                     token_type: TokenType::Whitespace,
                 });
                 continue;
             }
 
-            // Check for operator
+            // Check for multi-char operators (two chars)
             if pos + 1 < len {
-                let two_char = &text[pos..pos + 2];
+                let two_char = &text[byte_pos..chars[pos + 1].0 + chars[pos + 1].1.len_utf8()];
                 if self.operator_re.is_match(two_char) {
                     tokens.push(Token {
                         text: two_char.to_string(),
-                        offset: pos,
-                        length: 2,
+                        offset: byte_pos,
+                        length: two_char.len(),
                         token_type: TokenType::Operator,
                     });
                     pos += 2;
@@ -217,11 +229,12 @@ impl Tokenizer for HeuristicTokenizer {
             }
 
             // Single char operator
-            if self.operator_re.is_match(&text[pos..pos + 1]) {
+            let one_char = &text[byte_pos..byte_pos + ch.len_utf8()];
+            if self.operator_re.is_match(one_char) {
                 tokens.push(Token {
-                    text: text[pos..pos + 1].to_string(),
-                    offset: pos,
-                    length: 1,
+                    text: one_char.to_string(),
+                    offset: byte_pos,
+                    length: one_char.len(),
                     token_type: TokenType::Operator,
                 });
                 pos += 1;
@@ -229,53 +242,60 @@ impl Tokenizer for HeuristicTokenizer {
             }
 
             // Number literal
-            if bytes[pos].is_ascii_digit() {
+            if ch.is_ascii_digit() {
                 let start = pos;
-                while pos < len && (bytes[pos].is_ascii_digit() || bytes[pos] == b'.') {
+                while pos < len && (chars[pos].1.is_ascii_digit() || chars[pos].1 == '.') {
                     pos += 1;
                 }
+                let end_byte = if pos < len { chars[pos].0 } else { text.len() };
                 tokens.push(Token {
-                    text: text[start..pos].to_string(),
-                    offset: start,
-                    length: pos - start,
+                    text: text[chars[start].0..end_byte].to_string(),
+                    offset: chars[start].0,
+                    length: end_byte - chars[start].0,
                     token_type: TokenType::Number,
                 });
                 continue;
             }
 
             // Word (prose or code identifier)
-            if bytes[pos].is_ascii_alphabetic() || bytes[pos] == b'_' {
+            if ch.is_ascii_alphabetic() || ch == '_' {
                 let start = pos;
-                while pos < len && (bytes[pos].is_ascii_alphanumeric() || bytes[pos] == b'_' || bytes[pos] == b'\'') {
-                    pos += 1;
+                while pos < len {
+                    let c = chars[pos].1;
+                    if c.is_ascii_alphanumeric() || c == '_' || c == '\'' {
+                        pos += 1;
+                    } else {
+                        break;
+                    }
                 }
-                let word = &text[start..pos];
+                let end_byte = if pos < len { chars[pos].0 } else { text.len() };
+                let word = &text[chars[start].0..end_byte];
 
                 // Determine if it's a code identifier or prose word
-                let token_type = if word.contains('_') || word.chars().any(|c| c.is_ascii_uppercase()) {
-                    TokenType::CodeIdentifier
-                } else {
-                    TokenType::Word
-                };
+                let token_type =
+                    if word.contains('_') || word.chars().any(|c| c.is_ascii_uppercase()) {
+                        TokenType::CodeIdentifier
+                    } else {
+                        TokenType::Word
+                    };
 
                 tokens.push(Token {
                     text: word.to_string(),
-                    offset: start,
-                    length: pos - start,
+                    offset: chars[start].0,
+                    length: end_byte - chars[start].0,
                     token_type,
                 });
                 continue;
             }
 
-            // Punctuation and other characters
-            let start = pos;
-            pos += 1;
+            // Other characters (multi-byte UTF-8, punctuation, etc.)
             tokens.push(Token {
-                text: text[start..pos].to_string(),
-                offset: start,
-                length: 1,
+                text: ch.to_string(),
+                offset: byte_pos,
+                length: ch.len_utf8(),
                 token_type: TokenType::Punctuation,
             });
+            pos += 1;
         }
 
         Ok(TokenStream {
@@ -322,7 +342,9 @@ mod tests {
     #[test]
     fn test_tokenize_code_identifier() {
         let t = setup_tokenizer();
-        let stream = t.tokenize_with_context("fooBar", TokenContext::Code).unwrap();
+        let stream = t
+            .tokenize_with_context("fooBar", TokenContext::Code)
+            .unwrap();
         assert_eq!(stream.len(), 1);
         assert_eq!(stream.tokens[0].token_type, TokenType::CodeIdentifier);
     }
@@ -433,8 +455,64 @@ mod tests {
     #[test]
     fn test_tokenize_snake_case() {
         let t = setup_tokenizer();
-        let stream = t.tokenize_with_context("my_variable_name", TokenContext::Code).unwrap();
+        let stream = t
+            .tokenize_with_context("my_variable_name", TokenContext::Code)
+            .unwrap();
         assert_eq!(stream.len(), 1);
         assert_eq!(stream.tokens[0].token_type, TokenType::CodeIdentifier);
+    }
+
+    // --- Property-based tests ---
+
+    proptest::proptest! {
+        /// Tokenization should never panic for any valid Unicode string.
+                    #[test]
+                    fn doesnt_panic_on_any_input(s in "\\PC*") {
+            let t = HeuristicTokenizer::new();
+            let _ = t.tokenize(&s);
+        }
+
+        /// Prose text should not be classified as code by context detection.
+                    #[test]
+                    fn prose_not_classified_as_code(s in "[a-zA-Z]+( [a-zA-Z]+)*") {
+                        let t = HeuristicTokenizer::new();
+                        let ctx = t.detect_context(&s);
+                        // Pure prose without code patterns should remain prose.
+                        // Exclude: camelCase, snake_case, code keywords, operators.
+                        let has_camel = s.chars().any(|c| c.is_ascii_uppercase())
+                            && s.chars().any(|c| c.is_ascii_lowercase());
+                        if !s.contains("->") && !s.contains("fn ") && !s.contains("let ")
+                            && !has_camel
+                        {
+                            assert_eq!(ctx, TokenContext::Prose, "prose text '{s}' classified as code");
+                        }
+                    }
+
+        /// Token sequences for ASCII words should have at least one token per word.
+        #[test]
+        fn each_word_yields_at_least_one_token(words in proptest::collection::vec("[a-zA-Z]+", 1..10)) {
+            let t = HeuristicTokenizer::new();
+            let text = words.join(" ");
+            let stream = t.tokenize(&text).unwrap();
+
+            // Should have tokens for each word plus whitespace between them
+            let word_tokens: Vec<_> = stream.tokens.iter()
+                .filter(|tok| tok.token_type == TokenType::Word || tok.token_type == TokenType::CodeIdentifier)
+                .collect();
+            assert_eq!(word_tokens.len(), words.len(),
+                "expected {} word tokens for '{text}', got {}",
+                words.len(), word_tokens.len());
+        }
+
+        /// Whitespace-only strings should produce only whitespace tokens.
+        #[test]
+        fn whitespace_only(s in "[ ]+") {
+            let t = HeuristicTokenizer::new();
+            let stream = t.tokenize(&s).unwrap();
+            for tok in &stream.tokens {
+                assert_eq!(tok.token_type, TokenType::Whitespace,
+                    "whitespace-only input produced non-whitespace token: '{:?}'", tok);
+            }
+        }
     }
 }

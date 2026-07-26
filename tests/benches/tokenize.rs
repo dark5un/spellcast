@@ -2,14 +2,15 @@
 
 //! Tokenization benchmarks.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 use voxkey::tokenizer::{HeuristicTokenizer, Tokenizer};
 
 fn benchmark_heuristic_tokenizer(c: &mut Criterion) {
     let tokenizer = HeuristicTokenizer::new();
 
-    let prose_text = "hello world, this is a test of the tokenizer system. how are you doing today?";
+    let prose_text =
+        "hello world, this is a test of the tokenizer system. how are you doing today?";
     let code_text = "fn main() { let x = fooBar::new(); x.bazQux(42); }";
 
     c.bench_function("tokenize_prose", |b| {

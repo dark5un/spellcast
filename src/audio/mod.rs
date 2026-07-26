@@ -102,7 +102,7 @@ impl AudioCapture {
     /// Returns the audio buffer.
     pub fn record_duration(&self, duration_secs: f64) -> VoxKeyResult<AudioBuffer> {
         let sample_rate = self.config.sample_rate;
-        let channels = self.config.channels as usize;
+        let _channels = self.config.channels as usize;
         let samples_needed = (sample_rate as f64 * duration_secs) as usize;
 
         let samples = Arc::new(Mutex::new(Vec::with_capacity(samples_needed)));
@@ -135,7 +135,11 @@ impl AudioCapture {
             .map_err(|e| VoxKeyError::Audio(format!("Failed to start audio stream: {e}")))?;
 
         // Record for the specified duration
-        let recording_duration = if duration_secs > 0.0 { duration_secs } else { 3.0 };
+        let recording_duration = if duration_secs > 0.0 {
+            duration_secs
+        } else {
+            3.0
+        };
         std::thread::sleep(std::time::Duration::from_secs_f64(recording_duration));
 
         // Stop the stream
@@ -170,7 +174,11 @@ impl AudioCapture {
 
         Ok(AudioBuffer {
             samples: resampled,
-            sample_rate: if sample_rate != 16000 { 16000 } else { sample_rate },
+            sample_rate: if sample_rate != 16000 {
+                16000
+            } else {
+                sample_rate
+            },
         })
     }
 

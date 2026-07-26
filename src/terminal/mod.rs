@@ -10,7 +10,6 @@
 
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
@@ -20,10 +19,43 @@ use crate::config::VoxKeyConfig;
 use crate::error::{VoxKeyError, VoxKeyResult};
 use crate::memory::MemoryStore;
 use crate::modes::{Mode, ModeController};
-use crate::tokenizer::{HeuristicTokenizer, TokenStream, TokenContext};
+use crate::tokenizer::{HeuristicTokenizer, TokenContext, TokenStream};
 
 /// Global flag for the kill switch (accessible from signal handlers).
 static KILL_SWITCH_ENGAGED: AtomicBool = AtomicBool::new(false);
+
+/// Installs signal handlers that restore the terminal on exit.
+fn install_signal_handlers() {
+    // Restore terminal on SIGTERM/SIGINT using ctrlc
+    // We use a simple approach: set a flag that the main loop checks
+    // This is a best-effort guard; the main code also restores on Drop.
+    let result = std::panic::catch_unwind(|| {
+        ctrlc::set_handler(move || {
+            let _ = terminal::disable_raw_mode();
+            let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
+            std::process::exit(130);
+        })
+        .ok();
+    });
+    let _ = result;
+}
+
+/// A guard that restores the terminal when dropped.
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn new() -> Self {
+        install_signal_handlers();
+        TerminalGuard
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        let _ = terminal::disable_raw_mode();
+        let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
+    }
+}
 
 /// Run the main VoxKey terminal loop.
 ///
@@ -45,9 +77,12 @@ pub fn run_terminal_loop(
     crossterm::execute!(stdout, EnterAlternateScreen)
         .map_err(|e| VoxKeyError::TerminalRender(format!("Failed to enter alt screen: {e}")))?;
 
+    // Install signal handlers and ensure terminal restoration on drop
+    let _guard = TerminalGuard::new();
+
     let result = run_inner(config, mode_ctrl, _memory, shell);
 
-    // Restore terminal
+    // Explicit restore (guard catches panic paths)
     let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
 
@@ -67,7 +102,7 @@ fn run_inner(
     let pty_system = native_pty_system();
     let size = get_terminal_size()?;
 
-    let mut pair = pty_system
+    let pair = pty_system
         .openpty(size)
         .map_err(|e| VoxKeyError::TerminalPty(format!("Failed to create PTY: {e}")))?;
 
@@ -98,7 +133,7 @@ fn run_inner(
     let mut token_index: Option<usize> = None;
     let mut pending_text: String = String::new();
     let mut predictions: Vec<String> = Vec::new();
-    let mut dictation_mode_active = false;
+    let _dictation_mode_active = false;
 
     // Main event loop
     loop {
@@ -154,7 +189,8 @@ fn run_inner(
                 // Check kill switch first
                 if is_kill_switch(&key_event) {
                     mode_ctrl.toggle_kill_switch();
-                    KILL_SWITCH_ENGAGED.store(mode_ctrl.current_mode().is_killed(), Ordering::SeqCst);
+                    KILL_SWITCH_ENGAGED
+                        .store(mode_ctrl.current_mode().is_killed(), Ordering::SeqCst);
                     if mode_ctrl.current_mode().is_killed() {
                         log::info!("Kill switch engaged — VoxKey disabled");
                     } else {
@@ -225,10 +261,10 @@ fn render_status_bar(
     let mut status = format!("[{}]", mode_str);
 
     // Show current token
-    if let Some(idx) = token_index {
-        if let Some(token) = tokens.get(idx) {
-            status.push_str(&format!(" @{}:'{}'", idx, token.text));
-        }
+    if let Some(idx) = token_index
+        && let Some(token) = tokens.get(idx)
+    {
+        status.push_str(&format!(" @{}:'{}'", idx, token.text));
     }
 
     // Show predictions
@@ -265,6 +301,7 @@ fn render_status_bar(
 }
 
 /// Handle a key event in dictation mode.
+#[allow(clippy::too_many_arguments)]
 fn handle_dictation_key(
     key: &KeyEvent,
     pty: &mut Box<dyn Write + Send>,
@@ -272,8 +309,8 @@ fn handle_dictation_key(
     token_index: &mut Option<usize>,
     pending_text: &mut String,
     predictions: &mut Vec<String>,
-    tokenizer: &HeuristicTokenizer,
-    config: &VoxKeyConfig,
+    _tokenizer: &HeuristicTokenizer,
+    _config: &VoxKeyConfig,
 ) -> VoxKeyResult<()> {
     match key.code {
         KeyCode::Char('h') | KeyCode::Left if key.modifiers.is_empty() => {
@@ -295,7 +332,11 @@ fn handle_dictation_key(
             if let Some(idx) = *token_index {
                 tokens.remove(idx);
                 if idx >= tokens.len() {
-                    *token_index = if tokens.is_empty() { None } else { Some(tokens.len() - 1) };
+                    *token_index = if tokens.is_empty() {
+                        None
+                    } else {
+                        Some(tokens.len() - 1)
+                    };
                 }
             }
             *token_index = None;
@@ -312,10 +353,10 @@ fn handle_dictation_key(
         }
         KeyCode::Char('e') if key.modifiers.is_empty() => {
             // Explain: trigger the explain pipeline
-            if let Some(idx) = *token_index {
-                if let Some(token) = tokens.get(idx) {
-                    log::info!("Explain triggered on token '{}'", token.text);
-                }
+            if let Some(idx) = *token_index
+                && let Some(token) = tokens.get(idx)
+            {
+                log::info!("Explain triggered on token '{}'", token.text);
             }
             // TODO: trigger audio capture + explainer
         }

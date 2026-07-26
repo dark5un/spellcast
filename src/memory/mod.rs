@@ -8,7 +8,7 @@
 
 use std::path::Path;
 
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 use crate::error::{VoxKeyError, VoxKeyResult};
 
@@ -54,8 +54,9 @@ impl MemoryStore {
     pub fn open(path: &str) -> VoxKeyResult<Self> {
         // Ensure parent directory exists
         if let Some(parent) = Path::new(path).parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|_| VoxKeyError::Database(rusqlite::Error::InvalidPath(parent.to_path_buf())))?;
+            std::fs::create_dir_all(parent).map_err(|_| {
+                VoxKeyError::Database(rusqlite::Error::InvalidPath(parent.to_path_buf()))
+            })?;
         }
 
         let conn = Connection::open(path)?;
@@ -117,7 +118,10 @@ impl MemoryStore {
 
     /// Look up an explained token by its explanation text.
     /// Automatically computes the hash internally.
-    pub fn lookup_explained(&self, explanation_text: &str) -> VoxKeyResult<Option<ExplainedRecord>> {
+    pub fn lookup_explained(
+        &self,
+        explanation_text: &str,
+    ) -> VoxKeyResult<Option<ExplainedRecord>> {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(explanation_text.as_bytes());
@@ -252,12 +256,16 @@ impl MemoryStore {
 
     /// Get the total number of records.
     pub fn stats(&self) -> VoxKeyResult<(usize, usize)> {
-        let explained: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM explained_tokens", [], |row| row.get(0))?;
-        let corrections: i64 = self
-            .conn
-            .query_row("SELECT COUNT(*) FROM phonetic_corrections", [], |row| row.get(0))?;
+        let explained: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM explained_tokens", [], |row| {
+                    row.get(0)
+                })?;
+        let corrections: i64 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM phonetic_corrections", [], |row| {
+                    row.get(0)
+                })?;
         Ok((explained as usize, corrections as usize))
     }
 }

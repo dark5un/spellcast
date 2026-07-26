@@ -101,9 +101,8 @@ impl AsrEngine for WhisperAsr {
         let audio_f32 = audio.to_f32();
 
         // Run full transcription
-        let mut params = whisper_rs::FullParams::new(
-            whisper_rs::SamplingStrategy::Greedy { best_of: 5 },
-        );
+        let mut params =
+            whisper_rs::FullParams::new(whisper_rs::SamplingStrategy::Greedy { best_of: 5 });
 
         // Set language
         params.set_language(Some(&self.language));
@@ -119,7 +118,8 @@ impl AsrEngine for WhisperAsr {
         // Collect text from all segments using the iterator
         let mut text = String::new();
         for segment in state.as_iter() {
-            let seg_text = segment.to_str()
+            let seg_text = segment
+                .to_str()
                 .map_err(|e| VoxKeyError::AsrInference(e.to_string()))?;
             text.push_str(seg_text);
             text.push(' ');
@@ -143,6 +143,12 @@ impl AsrEngine for WhisperAsr {
 
 /// No-op ASR engine for testing when whisper-rs is unavailable.
 pub struct NoopAsr;
+
+impl Default for NoopAsr {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl NoopAsr {
     pub fn new() -> Self {

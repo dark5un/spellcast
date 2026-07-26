@@ -8,8 +8,6 @@
 //! 3. Falls back to a web search
 //! 4. Stores the result in the DB for future use
 
-use std::collections::HashMap;
-
 use sha2::{Digest, Sha256};
 
 use crate::error::{VoxKeyError, VoxKeyResult};
@@ -110,15 +108,15 @@ impl Explainer {
         // Step 1: Check local cache
         if let Some(ref memory) = self.memory {
             let explanation_hash = self.hash_explanation(&explanation);
-            if let Some(cached) = memory.lookup_explained(&explanation_hash)? {
-                if cached.usage_count > 0 {
-                    log::info!("Explain: cache hit for '{}'", explanation);
-                    return Ok(ExplainResult {
-                        token: cached.token,
-                        source: ExplainSource::LocalCache,
-                        confidence: 0.9,
-                    });
-                }
+            if let Some(cached) = memory.lookup_explained(&explanation_hash)?
+                && cached.usage_count > 0
+            {
+                log::info!("Explain: cache hit for '{}'", explanation);
+                return Ok(ExplainResult {
+                    token: cached.token,
+                    source: ExplainSource::LocalCache,
+                    confidence: 0.9,
+                });
             }
         }
 
@@ -128,11 +126,7 @@ impl Explainer {
             match self.query_llm(&explanation, context) {
                 Ok(result) => {
                     if let Some(ref memory) = self.memory {
-                        let _ = memory.store_explanation(
-                            context,
-                            &explanation,
-                            &result.token,
-                        );
+                        let _ = memory.store_explanation(context, &explanation, &result.token);
                     }
                     return Ok(result);
                 }
@@ -147,11 +141,7 @@ impl Explainer {
             match self.web_search(&explanation) {
                 Ok(result) => {
                     if let Some(ref memory) = self.memory {
-                        let _ = memory.store_explanation(
-                            context,
-                            &explanation,
-                            &result.token,
-                        );
+                        let _ = memory.store_explanation(context, &explanation, &result.token);
                     }
                     return Ok(result);
                 }
@@ -189,8 +179,7 @@ impl Explainer {
                 explanation, context
             );
 
-            let messages = TextMessages::new()
-                .add_message(TextMessageRole::User, &prompt);
+            let messages = TextMessages::new().add_message(TextMessageRole::User, &prompt);
 
             let response = model
                 .send_chat_request(messages)
@@ -251,9 +240,18 @@ type Dictionary = Vec<(String, String)>;
 
 fn create_dictionary() -> Dictionary {
     vec![
-        ("iterate over a collection".to_string(), "for loop".to_string()),
-        ("conditional execution".to_string(), "if statement".to_string()),
-        ("function that returns nothing".to_string(), "void".to_string()),
+        (
+            "iterate over a collection".to_string(),
+            "for loop".to_string(),
+        ),
+        (
+            "conditional execution".to_string(),
+            "if statement".to_string(),
+        ),
+        (
+            "function that returns nothing".to_string(),
+            "void".to_string(),
+        ),
         ("a sequence of characters".to_string(), "string".to_string()),
         ("a whole number".to_string(), "integer".to_string()),
         ("a decimal number".to_string(), "float".to_string()),
@@ -261,8 +259,14 @@ fn create_dictionary() -> Dictionary {
         ("a collection of items".to_string(), "array".to_string()),
         ("a key value store".to_string(), "hash map".to_string()),
         ("a named block of code".to_string(), "function".to_string()),
-        ("a value that doesn't change".to_string(), "constant".to_string()),
-        ("a named memory location".to_string(), "variable".to_string()),
+        (
+            "a value that doesn't change".to_string(),
+            "constant".to_string(),
+        ),
+        (
+            "a named memory location".to_string(),
+            "variable".to_string(),
+        ),
         ("the current date".to_string(), "today".to_string()),
         ("the person reading this".to_string(), "you".to_string()),
         ("a greeting".to_string(), "hello".to_string()),

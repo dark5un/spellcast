@@ -15,7 +15,11 @@ use log::info;
 #[command(name = "voxkey", version, about)]
 struct Cli {
     /// Path to configuration file
-    #[arg(short = 'c', long = "config", default_value = "~/.config/voxkey/config.toml")]
+    #[arg(
+        short = 'c',
+        long = "config",
+        default_value = "~/.config/voxkey/config.toml"
+    )]
     config: PathBuf,
 
     /// Compute backend override
@@ -61,10 +65,7 @@ fn main() -> anyhow::Result<()> {
 
     // Detect and initialize compute backend
     let backend_type_str = config.backend.backend_type.to_string();
-    let backend_type = cli
-        .backend
-        .as_deref()
-        .unwrap_or(&backend_type_str);
+    let backend_type = cli.backend.as_deref().unwrap_or(&backend_type_str);
     let _compute_backend = voxkey::backend::detect_backend(backend_type)?;
     info!("Compute backend: {}", backend_type);
 
@@ -85,12 +86,7 @@ fn main() -> anyhow::Result<()> {
     let _asr_engine = voxkey::asr::NoopAsr::new();
 
     // Run the main terminal loop
-    voxkey::terminal::run_terminal_loop(
-        &config,
-        &mut mode_ctrl,
-        &memory,
-        cli.shell.as_deref(),
-    )?;
+    voxkey::terminal::run_terminal_loop(&config, &mut mode_ctrl, &memory, cli.shell.as_deref())?;
 
     info!("VoxKey shutting down");
     Ok(())

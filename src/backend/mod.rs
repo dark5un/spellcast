@@ -5,8 +5,8 @@
 //! Supports CUDA, Vulkan, and CPU backends.
 //! Auto-detects the best available backend at startup.
 
-use crate::error::{VoxKeyError, VoxKeyResult};
 use crate::config::BackendType;
+use crate::error::{VoxKeyError, VoxKeyResult};
 
 /// A compute backend descriptor.
 #[derive(Debug, Clone)]
@@ -74,7 +74,10 @@ fn detect_auto() -> VoxKeyResult<ComputeBackend> {
 fn detect_cuda() -> VoxKeyResult<ComputeBackend> {
     // Try running nvidia-smi to detect the GPU
     let output = std::process::Command::new("nvidia-smi")
-        .args(["--query-gpu=name,compute_cap,driver_version", "--format=csv,noheader"])
+        .args([
+            "--query-gpu=name,compute_cap,driver_version",
+            "--format=csv,noheader",
+        ])
         .output()
         .map_err(|_| VoxKeyError::Backend("nvidia-smi not found".to_string()))?;
 

@@ -14,9 +14,11 @@ use crate::error::{VoxKeyError, VoxKeyResult};
 /// Backend configuration: which compute backend to use.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum BackendType {
     /// Auto-detect: CUDA → Vulkan → CPU
     #[serde(alias = "auto")]
+    #[default]
     Auto,
     /// NVIDIA CUDA
     #[serde(alias = "cuda")]
@@ -27,12 +29,6 @@ pub enum BackendType {
     /// CPU-only fallback
     #[serde(alias = "cpu")]
     Cpu,
-}
-
-impl Default for BackendType {
-    fn default() -> Self {
-        BackendType::Auto
-    }
 }
 
 impl std::fmt::Display for BackendType {
@@ -209,7 +205,7 @@ impl Default for BackendConfig {
 }
 
 /// Top-level VoxKey configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VoxKeyConfig {
     #[serde(default)]
     pub backend: BackendConfig,
@@ -229,21 +225,6 @@ pub struct VoxKeyConfig {
     pub languages: LanguageConfig,
 }
 
-impl Default for VoxKeyConfig {
-    fn default() -> Self {
-        Self {
-            backend: BackendConfig::default(),
-            audio: AudioConfig::default(),
-            asr: AsrConfig::default(),
-            llm: LlmConfig::default(),
-            keys: KeyConfig::default(),
-            tokenizer: TokenizerConfig::default(),
-            database: DatabaseConfig::default(),
-            languages: LanguageConfig::default(),
-        }
-    }
-}
-
 /// Load configuration from a TOML file.
 ///
 /// Returns default configuration if the file doesn't exist.
@@ -253,10 +234,7 @@ pub fn load_config(path: &Path) -> VoxKeyResult<VoxKeyConfig> {
     let config_path = Path::new(&expanded);
 
     if !config_path.exists() {
-        log::info!(
-            "Config file {:?} not found, using defaults",
-            config_path
-        );
+        log::info!("Config file {:?} not found, using defaults", config_path);
         return Ok(VoxKeyConfig::default());
     }
 

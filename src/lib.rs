@@ -34,18 +34,18 @@
 //! - **Memory**: Persistent SQLite database
 //! - **Terminal**: PTY wrapper + status bar rendering
 
+pub mod asr;
+pub mod audio;
+pub mod backend;
 pub mod config;
 pub mod error;
-pub mod audio;
-pub mod asr;
-pub mod tokenizer;
-pub mod predictor;
 pub mod explainer;
 pub mod memory;
-pub mod terminal;
 pub mod modes;
-pub mod backend;
+pub mod predictor;
+pub mod terminal;
+pub mod tokenizer;
 
-pub use error::VoxKeyError;
 pub use config::VoxKeyConfig;
+pub use error::VoxKeyError;
 pub use modes::{Mode, ModeController};

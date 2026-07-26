@@ -2,15 +2,15 @@
 
 //! ASR latency benchmarks.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn benchmark_asr_pipeline(_c: &mut Criterion) {
     // TODO: Implement ASR latency benchmark when ASR engine is configured.
     // This requires a model file to be present.
     #[cfg(feature = "test-asr")]
     {
-        use voxkey::audio::MockAudioCapture;
         use voxkey::asr::NoopAsr;
+        use voxkey::audio::MockAudioCapture;
 
         let audio = MockAudioCapture::new().generate_test_buffer(3.0);
         let asr = NoopAsr::new();
