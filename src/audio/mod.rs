@@ -130,6 +130,7 @@ impl AudioCapture {
 
         let device_rate = self.device_sample_rate;
         let target_rate = self.config.sample_rate;
+        let device_channels = self._supported_config.channels() as usize;
 
         let stream: cpal::platform::Stream = self
             ._device
@@ -138,9 +139,12 @@ impl AudioCapture {
                 move |data: &[f32], _: &cpal::InputCallbackInfo| {
                     // Convert from f32 [-1.0, 1.0] to our target rate
                     let pcm_f32: Vec<f32> = if device_rate != target_rate {
-                        resample_linear_f32(data, device_rate, target_rate)
+                        // First convert to mono if multi-channel
+                        let mono = to_mono(data, device_channels);
+                        // Then resample to target rate
+                        resample_linear_f32(&mono, device_rate, target_rate)
                     } else {
-                        data.to_vec()
+                        to_mono(data, device_channels)
                     };
 
                     let mut guard = samples_clone.lock().unwrap();
@@ -292,6 +296,16 @@ fn resample_linear(input: &[i16], from_rate: u32, to_rate: u32) -> Vec<i16> {
 }
 
 /// Linear resampling for f32 samples (for continuous VAD capture).
+/// Convert interleaved multi-channel audio to mono by averaging channels.
+fn to_mono(data: &[f32], channels: usize) -> Vec<f32> {
+    if channels <= 1 {
+        return data.to_vec();
+    }
+    data.chunks(channels)
+        .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+        .collect()
+}
+
 fn resample_linear_f32(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     if from_rate == to_rate {
         return input.to_vec();
