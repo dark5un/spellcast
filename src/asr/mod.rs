@@ -90,6 +90,18 @@ impl AsrEngine for WhisperAsr {
 
         let start = std::time::Instant::now();
 
+        // Suppress whisper.cpp debug output during transcription
+        // (it prints decoder scores to stderr even with print flags off)
+        let saved_stderr = unsafe { libc::dup(2) };
+        let dev_null = std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/null")
+            .map_err(|e| SpellcastError::AsrInference(format!("Failed to open /dev/null: {e}")))?;
+        use std::os::fd::AsRawFd;
+        unsafe {
+            libc::dup2(dev_null.as_raw_fd(), 2);
+        }
+
         // Create a state (requires &mut)
         let mut state = ctx
             .create_state()
@@ -122,6 +134,13 @@ impl AsrEngine for WhisperAsr {
             text.push_str(seg_text);
             text.push(' ');
         }
+
+        // Restore stderr
+        unsafe {
+            libc::dup2(saved_stderr, 2);
+            libc::close(saved_stderr);
+        }
+        drop(dev_null);
 
         let elapsed = start.elapsed().as_millis() as u64;
 
