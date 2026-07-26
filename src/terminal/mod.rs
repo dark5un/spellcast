@@ -11,6 +11,8 @@
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+pub mod highlight;
+
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
