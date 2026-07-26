@@ -137,8 +137,9 @@ mod tests {
             llm_device: None,
         };
         let mgr = MultiGpuManager::detect(assignment);
-        // May have 0 devices in CI (no GPU), but should not panic
-        assert!(mgr.gpu_count() >= 0);
+        // Should not panic — GPU may or may not be available
+        _ = mgr.gpu_count();
+        
     }
 
     #[test]
