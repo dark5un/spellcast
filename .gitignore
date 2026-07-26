@@ -1,0 +1,12 @@
+/target
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode
+.idea
+*.iml
+*.o
+*.so
+*.dylib
+*.a
