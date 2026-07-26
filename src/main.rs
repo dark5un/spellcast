@@ -152,17 +152,19 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize ASR engine — suppress whisper.cpp stdout output
     // so it doesn't corrupt the terminal before alternate screen is entered
-    #[cfg(feature = "whisper-rs")]
+    #[cfg(feature = "cpu")]
     let _asr_engine = {
         use std::os::fd::AsRawFd;
-        // Save original stdout fd
-        let saved_fd = unsafe { libc::dup(1) };
+        // Save original stdout and stderr fds
+        let saved_stdout = unsafe { libc::dup(1) };
+        let saved_stderr = unsafe { libc::dup(2) };
         let dev_null = std::fs::OpenOptions::new()
             .write(true)
             .open("/dev/null")
             .expect("Failed to open /dev/null");
         unsafe {
             libc::dup2(dev_null.as_raw_fd(), 1);
+            libc::dup2(dev_null.as_raw_fd(), 2);
         }
 
         let model_path = shellexpand::tilde(&config.asr.model_path).to_string();
@@ -170,16 +172,18 @@ fn main() -> anyhow::Result<()> {
         let asr = spellcast::asr::WhisperAsr::new(&model_path, backend_type)?;
         log::info!("ASR model loaded successfully");
 
-        // Restore original stdout
+        // Restore original stdout and stderr
         unsafe {
-            libc::dup2(saved_fd, 1);
-            libc::close(saved_fd);
+            libc::dup2(saved_stdout, 1);
+            libc::dup2(saved_stderr, 2);
+            libc::close(saved_stdout);
+            libc::close(saved_stderr);
         }
         drop(dev_null);
 
         asr
     };
-    #[cfg(not(feature = "whisper-rs"))]
+    #[cfg(not(feature = "cpu"))]
     let _asr_engine = spellcast::asr::NoopAsr::new();
 
     // Run the main terminal loop
