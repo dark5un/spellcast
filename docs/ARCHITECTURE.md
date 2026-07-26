@@ -860,27 +860,27 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ## Chaossynergy Integration
 
-VoxKey's eventual home is as the core input component of **Chaossynergy**, an agent-native immutable Linux OS. The PTY wrapper in this repo is a spike of the dictation pipeline. A future **uinput injector** spike will evolve into the production integration:
+VoxKey's eventual home is as the core input component of **Chaossynergy**, an agent-native immutable Linux OS. The PTY wrapper in this repo is a spike of the dictation pipeline. A future **uinput injector** spike will evolve into the production integration, either as a **plugin for herdr** (Chaossynergy's existing agent multiplexer) or as a **standalone replacement** for herdr's input path:
 
 | Path | Status | What it does |
 |------|--------|-------------|
 | PTY wrapper (this repo) | Current | Intercepts input at the terminal level for development, testing, and standalone use |
 | uinput injector | Planned spike | Registers as a `/dev/uinput` virtual keyboard device, emits events system-wide |
-| Chaossynergy core | Future | The uinput injector replaces standard input at the OS level; agents orchestrate via herdr |
+| Chaossynergy core | Future (TBD) | Either a herdr plugin extending the agent multiplexer, or a standalone component that replaces herdr's input handling entirely |
 
-The pipeline — audio → ASR → tokenization → injection — is the same across all three paths. Only the output sink changes. This keeps the core stable while the integration surface evolves from PTY terminal → kernel input device → OS-level component.
+The pipeline — audio → ASR → tokenization → injection — is the same across all paths. Only the output sink changes. This keeps the core stable while the integration surface evolves.
 
 ### Architecture for the uinput path
 
 ```
 Microphone → cpal → AudioBuffer → whisper-rs → text → tokenizer
                                                           ↓
-                                              Chaossynergy agents (herdr)
+                                              Chaossynergy / herdr
                                                           ↓
                                               /dev/uinput → display server
 ```
 
-The token stream feeds into Chaossynergy's agent orchestration layer instead of being injected directly into a PTY. This allows agents to inspect, transform, and act on the tokenized dictation before it reaches the application.
+Whether VoxKey becomes a herdr plugin or replaces herdr's input path, the token stream feeds into the agent orchestration layer before reaching the application. Research during the uinput spike will settle the architecture.
 
 ---
 
