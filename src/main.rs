@@ -39,6 +39,10 @@ struct Cli {
     /// List audio devices and check microphone
     #[arg(long = "check-audio")]
     check_audio: bool,
+
+    /// Set audio input device name (saves to config)
+    #[arg(long = "set-input-device")]
+    set_input_device: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -60,8 +64,8 @@ fn main() -> anyhow::Result<()> {
     info!("Spellcast v{} starting up", env!("CARGO_PKG_VERSION"));
 
     // Load configuration
-    let config_path = cli.config;
-    let config = spellcast::config::load_config(&config_path)?;
+    let config_path = cli.config.clone();
+    let mut config = spellcast::config::load_config(&config_path)?;
     info!("Configuration loaded from {:?}", config_path);
 
     // Handle --check-audio: list input devices and exit
@@ -92,7 +96,26 @@ fn main() -> anyhow::Result<()> {
             }
         }
         return Ok(());
-    } // Create mode controller
+    }
+
+    // Handle --set-input-device: write device name to config and use it
+    if let Some(ref dev_name) = cli.set_input_device {
+        config.audio.device = dev_name.clone();
+        let config_path = shellexpand::tilde(
+            cli.config
+                .to_str()
+                .unwrap_or("~/.config/spellcast/config.toml"),
+        )
+        .to_string();
+        let toml_str = toml::to_string_pretty(&config).expect("Config should serialize");
+        if let Some(parent) = std::path::Path::new(&config_path).parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::write(&config_path, &toml_str).ok();
+        info!("Audio device set to \"{}\" in {}", dev_name, config_path);
+    }
+
+    // Create mode controller
     let mut mode_ctrl = spellcast::ModeController::new();
     info!("Mode controller initialized");
 
