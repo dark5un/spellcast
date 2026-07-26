@@ -41,6 +41,7 @@ pub mod config;
 pub mod error;
 pub mod explainer;
 pub mod memory;
+pub mod macros;
 pub mod modes;
 pub mod navigation;
 pub mod predictor;
