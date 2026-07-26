@@ -8,6 +8,8 @@
 //! 3. Falls back to a web search
 //! 4. Stores the result in the DB for future use
 
+pub mod v2;
+
 use sha2::{Digest, Sha256};
 
 use crate::error::{SpellcastError, SpellcastResult};

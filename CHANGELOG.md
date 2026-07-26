@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Spellcast are documented in this file.
+All notable changes to VoxKey are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -55,9 +55,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **VirtualBuffer**: tracks terminal content for cursor and scroll state.
 - 9 new tests covering highlighting, unhighlighting, predictions, visibility checks, and buffer management.
 
+#### Phase 2F: Prediction Engine v2
+- Phoneme-level edit distance with weighted operations (vowel/consonant/similar substitution costs)
+- Context-aware re-ranking using bigram/unigram frequency tables
+- Confidence-based prediction display (Hidden / Dimmed / Prominent)
+- User-adaptive correction learning from corrections history
+- 8 new tests
+
+#### Phase 2G: Explain Feature v2
+- Conversation context: circular buffer of last N explanations for chained queries
+- Domain-specific explanation packs (Python stdlib, Rust std, SQL keywords, JS built-ins)
+- Multi-word results with preview and accept/reject/re-explain workflow
+- Heuristic code pattern matching with PascalCase output
+- 10 new tests
+
+#### Phase 2H: Emoticon & Macro System
+- **EmoticonMacroManager**: 24 built-in emoticons/emoji with context filtering (prose, chat, code categories). Voice-activated triggers for common expressions: happy face, shrug, flip table, TODO/FIXME markers.
+- **Macro system**: user-defined snippets with variable interpolation (`$DATE`, `$TIME`, `$FILE`) and cursor positioning.
+- CLI management: add, list, remove, find macros.
+- 11 new tests covering all emoticon contexts, macro CRUD, and expansion interpolation.
+
 #### Feature Flags
-- `tree-sitter` (Phase 2A): enables AST-aware tokenizer with 17 grammars
-- `vad` (Phase 2B): enables neural voice activity detection via silero-vad-rust
 
 ### Changed
 - **Token types**: new `Keyword`, `Comment`, `StringLiteral`, `Number` variants add semantic richness to all tokenization output
@@ -98,13 +116,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--backend` / `-b`: compute backend override
   - `--shell` / `-s`: shell to spawn
   - `--verbose` / `-v`: verbose logging
-- Error types (`src/error.rs`): unified `SpellcastError` enum with `thiserror` — covers config, audio, ASR, tokenizer, and PTY errors
+- Error types (`src/error.rs`): unified `VoxKeyError` enum with `thiserror` — covers config, audio, ASR, tokenizer, and PTY errors
 - Logging setup via `env_logger`
 
 #### Configuration (`src/config/`)
 - TOML-based configuration with `serde` deserialization
 - `BackendType` enum: `Auto` (default), `Cuda`, `Vulkan`, `Cpu`
-- Default config generation at `~/.config/spellcast/config.toml`
+- Default config generation at `~/.config/voxkey/config.toml`
 - Default config template (`config/default-config.toml`)
 
 #### Mode Controller (`src/modes/`)
@@ -191,4 +209,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release profile with full optimizations
 - Benchmark profile with debug symbols
 
-[0.1.0]: https://github.com/spellcast/spellcast/releases/tag/v0.1.0
+[0.1.0]: https://github.com/voxkey/voxkey/releases/tag/v0.1.0
