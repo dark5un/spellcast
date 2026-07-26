@@ -42,6 +42,7 @@ pub mod error;
 pub mod explainer;
 pub mod memory;
 pub mod modes;
+pub mod navigation;
 pub mod predictor;
 pub mod terminal;
 pub mod tokenizer;
