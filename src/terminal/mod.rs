@@ -365,6 +365,11 @@ fn run_inner(
         while let Ok(data) = pty_rx.try_recv() {
             got_output = true;
             let output = String::from_utf8_lossy(&data);
+            log::trace!(
+                "PTY OUT: {} bytes: {:?}",
+                data.len(),
+                &output[..output.len().min(80)]
+            );
             print!("{}", output);
         }
         if got_output {
