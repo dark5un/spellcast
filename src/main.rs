@@ -5,6 +5,7 @@
 //! Parses CLI arguments, loads configuration, initializes subsystems,
 //! and runs the main event loop.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -66,24 +67,32 @@ fn main() -> anyhow::Result<()> {
     // Handle --check-audio: list devices and exit
     if cli.check_audio {
         let host = cpal::default_host();
-        println!("Audio host: {}", host.id().name());
-        println!("\nInput devices:");
+        println!("Audio host: {}\n", host.id().name());
+
+        println!("Input devices:");
+        let mut seen_input: HashSet<String> = HashSet::new();
         match host.input_devices() {
             Ok(devices) => {
-                for device in devices {
-                    if let Ok(name) = device.description().map(|d| d.name().to_string()) {
-                        println!("  ─ {name}");
+                for (i, device) in devices.enumerate() {
+                    if let Ok(name) = device.description().map(|d| d.name().to_string())
+                        && seen_input.insert(name.clone())
+                    {
+                        println!("  {:3}. {}", i + 1, name);
                     }
                 }
             }
             Err(e) => eprintln!("Failed to list input devices: {e}"),
         }
+
         println!("\nOutput devices:");
+        let mut seen_output: HashSet<String> = HashSet::new();
         match host.output_devices() {
             Ok(devices) => {
-                for device in devices {
-                    if let Ok(name) = device.description().map(|d| d.name().to_string()) {
-                        println!("  ─ {name}");
+                for (i, device) in devices.enumerate() {
+                    if let Ok(name) = device.description().map(|d| d.name().to_string())
+                        && seen_output.insert(name.clone())
+                    {
+                        println!("  {:3}. {}", i + 1, name);
                     }
                 }
             }
