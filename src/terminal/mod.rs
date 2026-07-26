@@ -209,6 +209,12 @@ fn run_inner(
 
                 match mode_ctrl.current_mode() {
                     Mode::Dictation => {
+                        // Check for mode toggle (F10)
+                        if is_caps_lock_toggle(&key_event) {
+                            mode_ctrl.toggle_mode();
+                            log::info!("Switched to raw mode");
+                            continue;
+                        }
                         handle_dictation_key(
                             &key_event,
                             &mut pty_writer,
@@ -407,20 +413,16 @@ fn handle_dictation_key(
     Ok(())
 }
 
-/// Check if a key event is the kill switch (Ctrl+Shift+Escape).
+/// Check if a key event is the kill switch (Ctrl+Shift+X).
 fn is_kill_switch(key: &KeyEvent) -> bool {
-    key.code == KeyCode::Esc
+    key.code == KeyCode::Char('x')
         && key.modifiers.contains(KeyModifiers::CONTROL)
         && key.modifiers.contains(KeyModifiers::SHIFT)
 }
 
-/// Check if a key event is the Caps Lock toggle.
-fn is_caps_lock_toggle(_key: &KeyEvent) -> bool {
-    // Caps Lock is not directly detectable via crossterm as a KeyEvent.
-    // For MVP: we use a conventional key combo like Ctrl+` or F10
-    // The actual Caps Lock detection requires polling the X11/Wayland keyboard state.
-    // This is tracked as a future improvement.
-    false
+/// Check if a key event is the Caps Lock toggle (F10).
+fn is_caps_lock_toggle(key: &KeyEvent) -> bool {
+    key.code == KeyCode::F(10)
 }
 
 /// Write a key event to the PTY.
@@ -514,7 +516,7 @@ mod tests {
     #[test]
     fn test_is_kill_switch() {
         let ks = KeyEvent {
-            code: KeyCode::Esc,
+            code: KeyCode::Char('x'),
             modifiers: KeyModifiers::CONTROL | KeyModifiers::SHIFT,
             kind: event::KeyEventKind::Press,
             state: event::KeyEventState::NONE,
