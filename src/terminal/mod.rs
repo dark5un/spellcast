@@ -422,8 +422,12 @@ fn handle_dictation_key(
 }
 
 /// Check if a key event is the kill switch (Ctrl+\ — SIGQUIT in raw mode).
+/// Detects both the kitty-protocol '\\' with CONTROL and the raw FS character.
 fn is_kill_switch(key: &KeyEvent) -> bool {
-    key.code == KeyCode::Char('\\') && key.modifiers.contains(KeyModifiers::CONTROL)
+    let is_ctrl_backslash = key.code == KeyCode::Char('\\')
+        && key.modifiers.contains(KeyModifiers::CONTROL);
+    let is_fs_char = key.code == KeyCode::Char('\x1c');
+    is_ctrl_backslash || is_fs_char
 }
 
 /// Check if a key event is the Caps Lock toggle.
@@ -537,6 +541,15 @@ mod tests {
             state: event::KeyEventState::NONE,
         };
         assert!(!is_kill_switch(&not_ks));
+
+        // Also accept raw FS character (0x1c) without modifiers
+        let fs_ks = KeyEvent {
+            code: KeyCode::Char('\x1c'),
+            modifiers: KeyModifiers::NONE,
+            kind: event::KeyEventKind::Press,
+            state: event::KeyEventState::NONE,
+        };
+        assert!(is_kill_switch(&fs_ks));
     }
 
     #[test]
