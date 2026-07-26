@@ -684,10 +684,34 @@ fn is_mode_toggle(key: &KeyEvent) -> bool {
 fn write_pty(pty: &mut Box<dyn Write + Send>, key: &KeyEvent) -> SpellcastResult<()> {
     match key.code {
         KeyCode::Char(c) => {
-            let mut buf = [0u8; 4];
-            let s = c.encode_utf8(&mut buf);
-            pty.write_all(s.as_bytes())
-                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
+            // Handle Ctrl+letter combos (Ctrl+A=0x01, Ctrl+B=0x02, ... Ctrl+Z=0x1A)
+            if key.modifiers.contains(KeyModifiers::CONTROL) {
+                let ctrl_byte = c as u32;
+                if ctrl_byte >= 0x60 {
+                    // lowercase letter
+                    let byte = (ctrl_byte - 0x60) as u8;
+                    pty.write_all(&[byte]).map_err(|e| {
+                        SpellcastError::TerminalPty(format!("PTY write error: {e}"))
+                    })?;
+                } else if (0x41..=0x5A).contains(&ctrl_byte) {
+                    // uppercase letter
+                    let byte = (ctrl_byte - 0x40) as u8;
+                    pty.write_all(&[byte]).map_err(|e| {
+                        SpellcastError::TerminalPty(format!("PTY write error: {e}"))
+                    })?;
+                } else {
+                    let mut buf = [0u8; 4];
+                    let s = c.encode_utf8(&mut buf);
+                    pty.write_all(s.as_bytes()).map_err(|e| {
+                        SpellcastError::TerminalPty(format!("PTY write error: {e}"))
+                    })?;
+                }
+            } else {
+                let mut buf = [0u8; 4];
+                let s = c.encode_utf8(&mut buf);
+                pty.write_all(s.as_bytes())
+                    .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
+            }
         }
         KeyCode::Enter => {
             pty.write_all(b"\r")
