@@ -134,10 +134,10 @@ impl OnboardingStep {
                 "Step 4: Dictation test.\nSay 'hello world' and see it appear as text."
             }
             OnboardingStep::KeyBindings => {
-                "Step 5: Key bindings.\nCaps Lock toggles dictation. H/L navigate tokens.\nCtrl+Alt+X is the kill switch."
+                "Step 5: Key bindings.\nCaps Lock toggles dictation. H/L navigate tokens.\nCtrl+\\ is the kill switch."
             }
             OnboardingStep::KillSwitch => {
-                "Step 6: Test the kill switch.\nPress Ctrl+Alt+X now to confirm it works."
+                "Step 6: Test the kill switch.\nPress Ctrl+\\ now to confirm it works."
             }
             OnboardingStep::Complete => {
                 "Setup complete! Spellcast is ready.\nYou can start dictating by pressing Caps Lock."

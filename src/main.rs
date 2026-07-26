@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 
 use clap::Parser;
+use cpal::traits::{DeviceTrait, HostTrait};
 use log::info;
 
 /// Spellcast — Dictation-first terminal keyboard multiplexer.
@@ -33,6 +34,10 @@ struct Cli {
     /// Enable verbose logging
     #[arg(short = 'v', long = "verbose")]
     verbose: bool,
+
+    /// List audio devices and check microphone
+    #[arg(long = "check-audio")]
+    check_audio: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -57,6 +62,35 @@ fn main() -> anyhow::Result<()> {
     let config_path = cli.config;
     let config = spellcast::config::load_config(&config_path)?;
     info!("Configuration loaded from {:?}", config_path);
+
+    // Handle --check-audio: list devices and exit
+    if cli.check_audio {
+        let host = cpal::default_host();
+        println!("Audio host: {}", host.id().name());
+        println!("\nInput devices:");
+        match host.input_devices() {
+            Ok(devices) => {
+                for device in devices {
+                    if let Ok(name) = device.description().map(|d| d.name().to_string()) {
+                        println!("  ─ {name}");
+                    }
+                }
+            }
+            Err(e) => eprintln!("Failed to list input devices: {e}"),
+        }
+        println!("\nOutput devices:");
+        match host.output_devices() {
+            Ok(devices) => {
+                for device in devices {
+                    if let Ok(name) = device.description().map(|d| d.name().to_string()) {
+                        println!("  ─ {name}");
+                    }
+                }
+            }
+            Err(e) => eprintln!("Failed to list output devices: {e}"),
+        }
+        return Ok(());
+    }
 
     // Create mode controller
     let mut mode_ctrl = spellcast::ModeController::new();

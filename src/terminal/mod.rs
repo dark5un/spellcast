@@ -76,17 +76,18 @@ pub fn run_terminal_loop(
     shell: Option<&str>,
 ) -> SpellcastResult<()> {
     // Initialize terminal
+    // Initialize terminal — raw mode FIRST (before alternate screen)
     let mut stdout = std::io::stdout();
-    crossterm::execute!(stdout, EnterAlternateScreen).map_err(|e| {
-        SpellcastError::TerminalRender(format!("Failed to enter alternate screen: {e}"))
-    })?;
+    terminal::enable_raw_mode()
+        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to enable raw mode: {e}")))?;
     crossterm::execute!(
         stdout,
         PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
     )
     .ok();
-    terminal::enable_raw_mode()
-        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to enable raw mode: {e}")))?;
+    crossterm::execute!(stdout, EnterAlternateScreen).map_err(|e| {
+        SpellcastError::TerminalRender(format!("Failed to enter alternate screen: {e}"))
+    })?;
     let _guard = TerminalGuard::new();
 
     let result = run_inner(config, mode_ctrl, _memory, shell);
@@ -420,11 +421,9 @@ fn handle_dictation_key(
     Ok(())
 }
 
-/// Check if a key event is the kill switch (Ctrl+Alt+X).
+/// Check if a key event is the kill switch (Ctrl+\ — SIGQUIT in raw mode).
 fn is_kill_switch(key: &KeyEvent) -> bool {
-    key.code == KeyCode::Char('x')
-        && key.modifiers.contains(KeyModifiers::CONTROL)
-        && key.modifiers.contains(KeyModifiers::ALT)
+    key.code == KeyCode::Char('\\') && key.modifiers.contains(KeyModifiers::CONTROL)
 }
 
 /// Check if a key event is the Caps Lock toggle.
@@ -524,8 +523,8 @@ mod tests {
     #[test]
     fn test_is_kill_switch() {
         let ks = KeyEvent {
-            code: KeyCode::Char('x'),
-            modifiers: KeyModifiers::CONTROL | KeyModifiers::ALT,
+            code: KeyCode::Char('\\'),
+            modifiers: KeyModifiers::CONTROL,
             kind: event::KeyEventKind::Press,
             state: event::KeyEventState::NONE,
         };
