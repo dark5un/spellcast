@@ -20,8 +20,8 @@
 //! │  │  Shell (bash/zsh) running in PTY             │  │
 //! │  └──────────────────────────────────────────────┘  │
 //! ├─────────────────────────────────────────────────────┤
-//! │  Modes: Dictation | Raw (Caps Lock toggle)          │
-//! │  Kill Switch: Ctrl+\                                 │
+//! │  Modes: Dictation | Raw (Ctrl+Space toggle)        │
+//! │  Kill Switch: Ctrl+G                                │
 //! └─────────────────────────────────────────────────────┘
 //! ```
 //!

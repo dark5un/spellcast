@@ -10,13 +10,11 @@
 
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 
 pub mod highlight;
 
-use crossterm::event::{
-    self, Event, KeyCode, KeyEvent, KeyModifiers, KeyboardEnhancementFlags,
-    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
-};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
@@ -31,9 +29,6 @@ static KILL_SWITCH_ENGAGED: AtomicBool = AtomicBool::new(false);
 
 /// Installs signal handlers that restore the terminal on exit.
 fn install_signal_handlers() {
-    // Restore terminal on SIGTERM/SIGINT using ctrlc
-    // We use a simple approach: set a flag that the main loop checks
-    // This is a best-effort guard; the main code also restores on Drop.
     let result = std::panic::catch_unwind(|| {
         ctrlc::set_handler(move || {
             let _ = terminal::disable_raw_mode();
@@ -57,42 +52,28 @@ impl TerminalGuard {
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
-        let _ = crossterm::execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
         let _ = terminal::disable_raw_mode();
         let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
     }
 }
 
 /// Run the main Spellcast terminal loop.
-///
-/// This function:
-/// 1. Spawns the user's shell in a PTY
-/// 2. Enters raw mode and starts the event loop
-/// 3. Handles mode switching, token navigation, dictation, and explain
 pub fn run_terminal_loop(
     config: &SpellcastConfig,
     mode_ctrl: &mut ModeController,
     _memory: &MemoryStore,
     shell: Option<&str>,
 ) -> SpellcastResult<()> {
-    // Initialize terminal
-    // Initialize terminal — raw mode FIRST (before alternate screen)
-    let mut stdout = std::io::stdout();
+    // Raw mode FIRST, then alternate screen
     terminal::enable_raw_mode()
         .map_err(|e| SpellcastError::TerminalRender(format!("Failed to enable raw mode: {e}")))?;
-    crossterm::execute!(
-        stdout,
-        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
-    )
-    .ok();
-    crossterm::execute!(stdout, EnterAlternateScreen).map_err(|e| {
+    crossterm::execute!(std::io::stdout(), EnterAlternateScreen).map_err(|e| {
         SpellcastError::TerminalRender(format!("Failed to enter alternate screen: {e}"))
     })?;
     let _guard = TerminalGuard::new();
 
     let result = run_inner(config, mode_ctrl, _memory, shell);
 
-    // Explicit restore (guard catches panic paths)
     let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
 
@@ -105,7 +86,6 @@ fn run_inner(
     _memory: &MemoryStore,
     shell: Option<&str>,
 ) -> SpellcastResult<()> {
-    // Create the tokenizer
     let tokenizer = HeuristicTokenizer::new();
 
     // Create the PTY
@@ -127,11 +107,27 @@ fn run_inner(
         .spawn_command(cmd)
         .map_err(|e| SpellcastError::TerminalPty(format!("Failed to spawn shell: {e}")))?;
 
-    // Get PTY reader and writer
+    // PTY reader — spawn a dedicated thread so it doesn't block the event loop
     let mut pty_reader = pair
         .master
         .try_clone_reader()
-        .unwrap_or_else(|_| panic!("Failed to clone PTY reader"));
+        .map_err(|e| SpellcastError::TerminalPty(format!("Failed to clone PTY reader: {e}")))?;
+
+    let (pty_tx, pty_rx) = mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut buf = [0u8; 4096];
+        loop {
+            match pty_reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    if pty_tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
 
     let mut pty_writer = pair
         .master
@@ -143,10 +139,22 @@ fn run_inner(
     let mut token_index: Option<usize> = None;
     let mut pending_text: String = String::new();
     let mut predictions: Vec<String> = Vec::new();
-    let _dictation_mode_active = false;
 
     // Main event loop
     loop {
+        // Check if the child process is still alive
+        if let Ok(Some(_)) = child.try_wait() {
+            log::info!("Shell process exited");
+            break;
+        }
+
+        // Drain PTY output (non-blocking from channel)
+        while let Ok(data) = pty_rx.try_recv() {
+            let output = String::from_utf8_lossy(&data);
+            print!("{}", output);
+        }
+        let _ = std::io::stdout().flush();
+
         // Render status bar
         render_status_bar(
             mode_ctrl.current_mode(),
@@ -155,38 +163,8 @@ fn run_inner(
             &predictions,
         )?;
 
-        // Check if the child process is still alive
-        if let Ok(Some(_exit_status)) = child.try_wait() {
-            log::info!("Shell process exited");
-            // Flush any remaining output from the PTY
-            let mut buf = [0u8; 4096];
-            while pty_reader.read(&mut buf).unwrap_or(0) > 0 {}
-            break;
-        }
-
-        // Read from PTY and write to stdout (non-blocking)
-        let mut pty_buf = [0u8; 4096];
-        match pty_reader.read(&mut pty_buf) {
-            Ok(0) => {
-                // EOF means the shell closed
-                break;
-            }
-            Ok(n) => {
-                let output = String::from_utf8_lossy(&pty_buf[..n]);
-                print!("{}", output);
-                let _ = std::io::stdout().flush();
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                // No data available, check for keyboard input
-            }
-            Err(e) => {
-                log::error!("PTY read error: {e}");
-                break;
-            }
-        }
-
-        // Check for keyboard input
-        if !event::poll(std::time::Duration::from_millis(10))
+        // Poll for keyboard input (10ms timeout)
+        if !event::poll(std::time::Duration::from_millis(50))
             .map_err(|e| SpellcastError::TerminalPty(format!("Event poll error: {e}")))?
         {
             continue;
@@ -217,8 +195,7 @@ fn run_inner(
 
                 match mode_ctrl.current_mode() {
                     Mode::Dictation => {
-                        // Check for mode toggle (F10)
-                        if is_caps_lock_toggle(&key_event) {
+                        if is_mode_toggle(&key_event) {
                             mode_ctrl.toggle_mode();
                             log::info!("Switched to raw mode");
                             continue;
@@ -235,8 +212,7 @@ fn run_inner(
                         )?;
                     }
                     Mode::Raw => {
-                        // Check for Caps Lock toggle
-                        if is_caps_lock_toggle(&key_event) {
+                        if is_mode_toggle(&key_event) {
                             mode_ctrl.toggle_mode();
                             log::info!("Switched to dictation mode");
                             continue;
@@ -272,41 +248,30 @@ fn render_status_bar(
     predictions: &[String],
 ) -> SpellcastResult<()> {
     let mode_str = mode.to_string();
-
-    // Build the status line
     let mut status = format!("[{}]", mode_str);
 
-    // Show current token
     if let Some(idx) = token_index
         && let Some(token) = tokens.get(idx)
     {
         status.push_str(&format!(" @{}:'{}'", idx, token.text));
     }
 
-    // Show predictions
     for (i, pred) in predictions.iter().enumerate() {
         status.push_str(&format!(" {0}:{1}", i + 1, pred));
     }
 
-    // Clear the current line, move to bottom, write status
-    let (cols, _rows) = crossterm::terminal::size()
+    let (cols, rows) = crossterm::terminal::size()
         .map_err(|e| SpellcastError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
 
     let status_len = status.len() as u16;
     let padding = cols.saturating_sub(status_len);
 
-    // Use reverse video for the status bar
     let padded_status = format!(
         "\r{}\r\x1b[7m{:padding$}\x1b[0m\r",
         "\x1b[K",
         status,
         padding = padding as usize
     );
-
-    // Save cursor, move to bottom, write status, restore cursor
-    // This uses the "scroll bottom" approach via ANSI escape
-    let (_, rows) = crossterm::terminal::size()
-        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
 
     let bottom_row = rows - 1;
     print!("\x1b[s\x1b[{};1H{}", bottom_row + 1, padded_status);
@@ -330,21 +295,18 @@ fn handle_dictation_key(
 ) -> SpellcastResult<()> {
     match key.code {
         KeyCode::Char('h') | KeyCode::Left if key.modifiers.is_empty() => {
-            // Navigate to previous token
             let idx = token_index.unwrap_or(tokens.len().saturating_sub(1));
             if idx > 0 {
                 *token_index = Some(idx - 1);
             }
         }
         KeyCode::Char('l') | KeyCode::Right if key.modifiers.is_empty() => {
-            // Navigate to next token
             let idx = token_index.unwrap_or(0);
             if idx + 1 < tokens.len() {
                 *token_index = Some(idx + 1);
             }
         }
         KeyCode::Char('x') if key.modifiers.is_empty() => {
-            // Delete highlighted token
             if let Some(idx) = *token_index {
                 tokens.remove(idx);
                 if idx >= tokens.len() {
@@ -358,33 +320,26 @@ fn handle_dictation_key(
             *token_index = None;
         }
         KeyCode::Char('r') if key.modifiers.is_empty() => {
-            // Re-dictate: delete highlighted token and prepare for new input
             if let Some(idx) = *token_index {
                 tokens.remove(idx);
                 *token_index = None;
                 *pending_text = String::new();
-                // TODO: trigger audio capture + ASR
                 log::info!("Re-dictate triggered at token {idx}");
             }
         }
         KeyCode::Char('e') if key.modifiers.is_empty() => {
-            // Explain: trigger the explain pipeline
             if let Some(idx) = *token_index
                 && let Some(token) = tokens.get(idx)
             {
                 log::info!("Explain triggered on token '{}'", token.text);
             }
-            // TODO: trigger audio capture + explainer
         }
         KeyCode::Char(c) if ('1'..='3').contains(&c) => {
-            // Accept prediction
             let pred_idx = (c as u8 - b'1') as usize;
             if pred_idx < predictions.len() {
                 let prediction = predictions[pred_idx].clone();
                 if let Some(idx) = *token_index {
                     if idx < tokens.len() {
-                        // Replace highlighted token with prediction
-                        // For MVP: just write the prediction to the PTY
                         let _ = write!(pty, "{}", prediction);
                         *token_index = None;
                         predictions.clear();
@@ -405,13 +360,10 @@ fn handle_dictation_key(
             let _ = write!(pty, "\x08 \x08");
         }
         KeyCode::Esc => {
-            // Exit dictation mode
             *token_index = None;
             predictions.clear();
-            // TODO: switch mode via Ctrl key
         }
         _ => {
-            // In dictation mode, pass printable characters through
             if let KeyCode::Char(c) = key.code {
                 let _ = write!(pty, "{}", c);
             }
@@ -421,19 +373,26 @@ fn handle_dictation_key(
     Ok(())
 }
 
-/// Check if a key event is the kill switch (Ctrl+\ — SIGQUIT in raw mode).
-/// Detects both the kitty-protocol '\\' with CONTROL and the raw FS character.
+/// Check if a key event is the kill switch (Ctrl+G).
+/// Ctrl+G sends BEL (0x07) in raw mode. Both forms are detected.
 fn is_kill_switch(key: &KeyEvent) -> bool {
-    let is_ctrl_backslash = key.code == KeyCode::Char('\\')
-        && key.modifiers.contains(KeyModifiers::CONTROL);
-    let is_fs_char = key.code == KeyCode::Char('\x1c');
-    is_ctrl_backslash || is_fs_char
+    let is_ctrl_g = key.code == KeyCode::Char('g') && key.modifiers.contains(KeyModifiers::CONTROL);
+    let is_bel = key.code == KeyCode::Char('\x07');
+    is_ctrl_g || is_bel
 }
 
-/// Check if a key event is the Caps Lock toggle.
-/// Requires PushKeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES to be active.
-fn is_caps_lock_toggle(key: &KeyEvent) -> bool {
-    key.code == KeyCode::CapsLock
+/// Check if a key event toggles dictation mode.
+/// Accepts Caps Lock (kitty protocol) OR Ctrl+Space (universal fallback).
+fn is_mode_toggle(key: &KeyEvent) -> bool {
+    // Caps Lock via kitty keyboard protocol (if terminal supports it)
+    if key.code == KeyCode::CapsLock {
+        return true;
+    }
+    // Ctrl+Space — works on ALL terminals, no kitty protocol needed
+    if key.code == KeyCode::Char(' ') && key.modifiers.contains(KeyModifiers::CONTROL) {
+        return true;
+    }
+    false
 }
 
 /// Write a key event to the PTY.
@@ -497,9 +456,7 @@ fn write_pty(pty: &mut Box<dyn Write + Send>, key: &KeyEvent) -> SpellcastResult
             pty.write_all(b"\x1b[6~")
                 .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
-        _ => {
-            // Unsupported key — ignore
-        }
+        _ => {}
     }
 
     pty.flush()
@@ -526,14 +483,25 @@ mod tests {
 
     #[test]
     fn test_is_kill_switch() {
+        // Ctrl+G with CONTROL modifier (kitty protocol)
         let ks = KeyEvent {
-            code: KeyCode::Char('\\'),
+            code: KeyCode::Char('g'),
             modifiers: KeyModifiers::CONTROL,
             kind: event::KeyEventKind::Press,
             state: event::KeyEventState::NONE,
         };
         assert!(is_kill_switch(&ks));
 
+        // Raw BEL character (0x07) — what Ctrl+G sends in raw mode
+        let bel_ks = KeyEvent {
+            code: KeyCode::Char('\x07'),
+            modifiers: KeyModifiers::NONE,
+            kind: event::KeyEventKind::Press,
+            state: event::KeyEventState::NONE,
+        };
+        assert!(is_kill_switch(&bel_ks));
+
+        // Not a kill switch
         let not_ks = KeyEvent {
             code: KeyCode::Char('q'),
             modifiers: KeyModifiers::CONTROL,
@@ -541,21 +509,44 @@ mod tests {
             state: event::KeyEventState::NONE,
         };
         assert!(!is_kill_switch(&not_ks));
+    }
 
-        // Also accept raw FS character (0x1c) without modifiers
-        let fs_ks = KeyEvent {
-            code: KeyCode::Char('\x1c'),
+    #[test]
+    fn test_mode_toggle_ctrl_space() {
+        let ctrl_space = KeyEvent {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::CONTROL,
+            kind: event::KeyEventKind::Press,
+            state: event::KeyEventState::NONE,
+        };
+        assert!(is_mode_toggle(&ctrl_space));
+    }
+
+    #[test]
+    fn test_mode_toggle_caps_lock() {
+        let caps = KeyEvent {
+            code: KeyCode::CapsLock,
             modifiers: KeyModifiers::NONE,
             kind: event::KeyEventKind::Press,
             state: event::KeyEventState::NONE,
         };
-        assert!(is_kill_switch(&fs_ks));
+        assert!(is_mode_toggle(&caps));
+    }
+
+    #[test]
+    fn test_mode_toggle_not_plain_space() {
+        let plain_space = KeyEvent {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::NONE,
+            kind: event::KeyEventKind::Press,
+            state: event::KeyEventState::NONE,
+        };
+        assert!(!is_mode_toggle(&plain_space));
     }
 
     #[test]
     fn test_get_terminal_size() {
         let result = get_terminal_size();
-        // May fail in non-terminal contexts (CI, test runner)
         if let Ok(size) = result {
             assert!(size.cols > 0);
             assert!(size.rows > 0);
