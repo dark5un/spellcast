@@ -20,6 +20,8 @@
    - [Compute Backend](#8-compute-backend)
    - [Configuration](#9-configuration)
    - [Error Handling](#10-error-handling)
+   - [Plugin System](#11-plugin-system)
+   - [Accessibility / Onboarding](#12-accessibility--onboarding)
 5. [Data Flow](#data-flow)
 6. [Deployment Architecture](#deployment-architecture)
 7. [Key Design Decisions](#key-design-decisions)
@@ -626,7 +628,199 @@ pub enum SpellcastError {
 
 ---
 
-## Data Flow
+### 11. Plugin System
+
+**Location:** `src/plugins/mod.rs`  \
+**Key Dependencies:** None (trait-based, no external crate)
+
+#### SpellcastPlugin Trait
+
+```rust
+/// Trait for Spellcast plugins. Implement this to hook into dictation
+/// and explain events at runtime.
+pub trait SpellcastPlugin: Send {
+    fn name(&self) -> &'static str;
+    fn description(&self) -> &'static str;
+    fn on_dictation(&self, text: &str, context: &TokenContext)
+        -> Option<Vec<String>>;
+    fn on_explain(&self, explanation: &str, context: &TokenContext)
+        -> Option<String>;
+}
+```
+
+The trait is minimal by design — two informational methods (`name`, `description`) and two event hooks (`on_dictation`, `on_explain`). Each hook returns `Option` — returning `None` means "no opinion; pass to the next plugin or default handler." Returning `Some(...)` preempts further processing for that event.
+
+#### PluginManager
+
+**Location:** `src/plugins/manager.rs`
+
+```rust
+pub struct PluginManager {
+    plugins: Vec<Box<dyn SpellcastPlugin>>,
+}
+```
+
+Key operations:
+
+| Method | Description |
+|--------|-------------|
+| `register(plugin)` | Adds a plugin to the active list |
+| `unload(name)` | Removes a plugin by name |
+| `list()` | Returns names and descriptions of all loaded plugins |
+| `dispatch_dictation(text, ctx)` | Iterates plugins in registration order, returns first `Some` result |
+| `dispatch_explain(text, ctx)` | Iterates plugins in registration order, returns first `Some` result |
+
+Plugins are processed in registration order. The first plugin to return a non-`None` value wins. This allows layering — a dictation-specialized plugin can intercept before a general-purpose fallback.
+
+#### CLI Integration
+
+```
+spellcast plugins list              # List loaded plugins
+spellcast plugins load <path>       # Register a plugin (future: dynamic loading)
+spellcast plugins unload <name>     # Unregister a plugin by name
+```
+
+In the MVP, plugins are statically compiled into the binary and registered at startup. The `load` command is a placeholder for future dynamic loading via `dlopen` or WASM plugins.
+
+#### Built-in Plugins
+
+| Plugin | `name()` | Description |
+|--------|----------|-------------|
+| `MedicalDictionaryPlugin` | `"medical-dict"` | Maps medical terminology (e.g., "myocardial infarction" → "MI", "hypertension" → "HTN") |
+| `CodeSymbolsPlugin` | `"code-symbols"` | Maps spoken code symbols (e.g., "arrow function" → "=>", "triple equals" → "===") |
+
+Both plugins load a small in-memory `HashMap<&str, &str>` of term → token mappings and implement `on_dictation` to replace matched phrases.
+
+#### Future: Dynamic Plugin Loading
+
+The architecture supports three upgrade paths:
+
+1. **Dynamic library plugins** (`libplugin.so`) loaded via `libloading` at runtime, registered through the `SpellcastPlugin` trait via a C ABI shim
+2. **WASM plugins** loaded via `wasmtime` — sandboxed, language-agnostic, downloadable from a registry
+3. **Config-file plugin declarations** — TOML-defined plugins that map spoken phrases to tokens without any code
+
+---
+
+### 12. Accessibility / Onboarding
+
+**Locations:**
+- `src/accessibility/audio_feedback.rs` — beep tone events
+- `src/accessibility/screen_reader.rs` — `spd-say` integration
+- `src/accessibility/onboarding.rs` — first-run wizard
+- `src/accessibility/mod.rs` — module root, re-exports
+
+**Key Dependencies:** None for core; `spd-say` (external binary) for screen reader
+
+#### Design Philosophy
+
+Accessibility is not a bolt-on. The `Accessibility` struct is initialized at startup and wired into the mode controller and event loop. Every mode transition and significant event is published through a lightweight event channel:
+
+```rust
+pub enum AccessibilityEvent {
+    ModeChanged { from: Mode, to: Mode },
+    DictationResult { text: String, confidence: f32 },
+    PluginTriggered { plugin_name: String },
+    KillSwitchEngaged,
+    KillSwitchReleased,
+}
+```
+
+#### Audio Feedback
+
+The `AudioFeedback` subsystem plays brief beep tones on mode transitions:
+
+| Event | Tone | Duration |
+|-------|------|----------|
+| Raw → Dictation | Rising two-tone (440 Hz → 880 Hz) | 100ms |
+| Dictation → Raw | Falling two-tone (880 Hz → 440 Hz) | 100ms |
+| Any → Killed | Low buzz (110 Hz) | 200ms |
+| Killed → Raw | Single click (800 Hz) | 50ms |
+
+Tones are generated as square waves via `std::io::Write` to `/dev/console` (or `stdout` on systems without console access). This avoids any dependency on audio libraries (no `cpal`, no ALSA) — the beeps are simple raw PCM written directly.
+
+```rust
+pub fn play_tone(&self, frequency: f32, duration: Duration) {
+    let sample_rate = 48000;
+    let samples: Vec<u8> = (0..samples)
+        .map(|i| if (i as f32 * frequency / sample_rate as f32).fract() < 0.5 { 0xFFu8 } else { 0x00u8 })
+        .collect();
+    // Write samples as raw PCM to console device
+}
+```
+
+#### Screen Reader
+
+The `ScreenReader` module sends accessibility notifications via `spd-say`:
+
+```rust
+pub fn announce(mode: &str, text: &str) {
+    std::process::Command::new("spd-say")
+        .arg(format!("Spellcast: {} — {}", mode, text))
+        .spawn()
+        .ok();
+}
+```
+
+`spd-say` is part of Speech Dispatcher, the standard Linux screen reader framework. The module:
+
+- Detects whether `spd-say` is available at startup (runs `which spd-say`); if missing, quietly disables itself
+- Announces mode transitions: "Dictation mode", "Raw mode", "Killed"
+- Announces token insertions: "Inserted: hello"
+- Announces phonetic predictions: "Predictions: one helm, two held, three help"
+- Runs `spd-say` as a detached process (`.spawn().ok()` — never `.wait()`) so it never blocks the event loop
+
+**Design note:** The screen reader module is deliberately thin — it delegates all TTS to Speech Dispatcher rather than embedding a TTS engine. This keeps the binary small and respects the user's existing accessibility setup (voice, speed, pitch configured in Speech Dispatcher).
+
+#### Onboarding Wizard
+
+The `OnboardingWizard` is a 7-step interactive guide that runs on first launch (detected by the absence of `~/.config/spellcast/onboarding_complete`):
+
+```txt
+Step 1/7: Welcome
+  "Spellcast replaces your keyboard with your voice. Let's set it up."
+
+Step 2/7: Microphone Check
+  Records 2 seconds of audio, plays it back.
+  Confirms the microphone is working.
+
+Step 3/7: Mode Toggle
+  "Press Caps Lock to enter Dictation mode."
+  Waits for Caps Lock → confirms transition.
+
+Step 4/7: Dictation Test
+  "Say 'hello world' and watch it appear in the terminal."
+  Records, transcribes, injects text.
+
+Step 5/7: Corrections
+  "Type 'H' to move left, then dictate a correction."
+  Tests token navigation and re-dictation.
+
+Step 6/7: Explain
+  "Say 'a collection of items' and press E to explain."
+  Demonstrates the explain feature.
+
+Step 7/7: Complete
+  "You're ready! Spellcast is now configured."
+  Writes ~/.config/spellcast/onboarding_complete.
+```
+
+Each step is a state in a state machine (`src/accessibility/onboarding.rs`):
+
+```rust
+pub enum OnboardingStep {
+    Welcome,
+    MicrophoneCheck,
+    ModeToggle,
+    DictationTest,
+    Corrections,
+    Explain,
+    Complete,
+}
+```
+
+The wizard can be skipped with `spellcast --skip-onboarding` or re-triggered with `spellcast --onboarding`.
+
+**Design rationale:** The onboarding is a separate state machine layered on top of the mode controller. It hijacks the event loop for its own purposes during each step, then falls back to normal operation. This keeps the wizard's logic isolated from the core dictation pipeline.
 
 ### Dictation Flow (simplified)
 
@@ -895,7 +1089,7 @@ Whether Spellcast becomes a herdr plugin or replaces herdr's input path, the tok
 | Streaming ASR | Real-time transcription via sherpa-onnx | Lower latency |
 | BK-tree phonetic index | O(log n) phonetic lookup | Support for 100k+ vocabularies |
 | Multi-language support | French, Spanish, German ASR | Broader audience |
-| Plugin system | User-extensible commands | Ecosystem growth |
+|| Plugin system | ✅ Done (Phase 2M) — `SpellcastPlugin` trait, `PluginManager`, two built-in plugins | Ecosystem growth |
 | GUI configurator | Visual config editor | Better UX |
 | Phonetic index editor | Add/remove words from the index | User customization |
 

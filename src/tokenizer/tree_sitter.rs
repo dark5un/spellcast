@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use tree_sitter::{Node, Parser, Tree};
 
-use crate::error::SpellcastResult;
+use crate::error::{SpellcastError, SpellcastResult};
 use crate::tokenizer::{Token, TokenContext, TokenStream, TokenType, Tokenizer};
 
 /// Maps a cursor to a TokenType based on the node's kind.

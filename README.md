@@ -13,7 +13,10 @@ This repository contains a **terminal PTY wrapper** — a working spike that int
 - **Kill switch**: Ctrl+Shift+Escape immediately disables Spellcast
 - **Local only**: All processing runs on your machine — no cloud
 - **GPU acceleration**: CUDA (NVIDIA) and CPU backends with auto-detection
-- **Persistent memory**: Learns from your corrections over time
+- **Persistent memory**: Learns from your corrections over time via SQLite
+- **Packaging options**: RPM (Fedora), Flatpak, and AUR (Arch Linux) packages with an AppStream metadata and a model management CLI (`spellcast models download/list/update`)
+- **Plugin system**: Extensible via the `SpellcastPlugin` trait — load, register, unload, and list plugins at runtime through `spellcast plugins` CLI commands; includes built-in `MedicalDictionaryPlugin` and `CodeSymbolsPlugin`
+- **Accessibility**: Audio feedback (beep tones on mode transitions), screen reader events via `spd-say`, and a 7-step onboarding wizard for first-run setup
 
 ## Quick Start
 

@@ -135,6 +135,10 @@ current = d
 for k in keys[:-1]:
     if k.isdigit():
         k = int(k)
+    if isinstance(current, dict) and k not in current:
+        current[k] = {}
+    elif isinstance(current, list) and (isinstance(k, int) and k >= len(current)):
+        current.append({})
     current = current[k]
 last_key = keys[-1]
 if last_key.isdigit():

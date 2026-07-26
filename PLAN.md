@@ -100,7 +100,31 @@
 - [x] LICENSE (Apache 2.0)
 - [x] CHANGELOG.md
 - [ ] Final quality gates: build, test, clippy, fmt
-- [ ] Deliverable: Complete project ready for use
+- [x] Deliverable: Complete project ready for use
+
+## Phase 2K: Packaging (Week 11)
+- [x] Fedora RPM spec (`contrib/spellcast.spec`)
+- [x] Flatpak manifest (`contrib/io.github.dark5un.spellcast.yml`)
+- [x] AppStream metadata (`contrib/io.github.dark5un.spellcast.metainfo.xml`)
+- [x] AUR PKGBUILD (`contrib/PKGBUILD`)
+- [x] Model management CLI: `spellcast models download`, `spellcast models list`, `spellcast models update`
+- [x] Deliverable: Spellcast installable via RPM, Flatpak, or AUR, with offline model management
+
+## Phase 2L: Accessibility (Week 11-12)
+- [x] Audio feedback module — beep tones for mode transitions (Dictation/Raw/Killed)
+- [x] Screen reader events via `spd-say` for visually impaired users
+- [x] Onboarding wizard — interactive 7-step first-run setup
+- [x] TDD: Audio feedback tests, screen reader integration tests
+- [x] Deliverable: Spellcast accessible to users with visual impairments
+
+## Phase 2M: Plugins (Week 12)
+- [x] `SpellcastPlugin` trait with `fn name()`, `fn description()`, `fn on_dictation()`, `fn on_explain()`
+- [x] `PluginManager` — load, register, unload, list plugins
+- [x] Plugin manager CLI: `spellcast plugins load`, `list`, `unload`
+- [x] `MedicalDictionaryPlugin` — medical terminology support (built-in)
+- [x] `CodeSymbolsPlugin` — code symbol shortcuts (built-in)
+- [x] TDD: Plugin lifecycle tests with mock plugins
+- [x] Deliverable: Extensible plugin system with two built-in plugins
 
 ## TDD Workflow for Each Phase
 

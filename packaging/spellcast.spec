@@ -83,10 +83,6 @@ Features:
 install -d -m 0755 %{buildroot}%{_sysconfdir}/spellcast/
 install -m 0644 config/default-config.toml %{buildroot}%{_sysconfdir}/spellcast/config.toml.example
 
-# Install license
-install -d -m 0755 %{buildroot}%{_licensedir}/%{name}
-install -m 0644 LICENSE %{buildroot}%{_licensedir}/%{name}/
-
 %check
 %{cargo_test}
 
