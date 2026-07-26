@@ -150,11 +150,34 @@ fn main() -> anyhow::Result<()> {
         device: config.audio.device.clone(),
     };
 
-    // Initialize ASR engine
+    // Initialize ASR engine — suppress whisper.cpp stdout output
+    // so it doesn't corrupt the terminal before alternate screen is entered
     #[cfg(feature = "whisper-rs")]
     let _asr_engine = {
+        use std::os::fd::AsRawFd;
+        // Save original stdout fd
+        let saved_fd = unsafe { libc::dup(1) };
+        let dev_null = std::fs::OpenOptions::new()
+            .write(true)
+            .open("/dev/null")
+            .expect("Failed to open /dev/null");
+        unsafe {
+            libc::dup2(dev_null.as_raw_fd(), 1);
+        }
+
         let model_path = shellexpand::tilde(&config.asr.model_path).to_string();
-        spellcast::asr::WhisperAsr::new(&model_path, backend_type)?
+        log::info!("Loading ASR model from {}", model_path);
+        let asr = spellcast::asr::WhisperAsr::new(&model_path, backend_type)?;
+        log::info!("ASR model loaded successfully");
+
+        // Restore original stdout
+        unsafe {
+            libc::dup2(saved_fd, 1);
+            libc::close(saved_fd);
+        }
+        drop(dev_null);
+
+        asr
     };
     #[cfg(not(feature = "whisper-rs"))]
     let _asr_engine = spellcast::asr::NoopAsr::new();

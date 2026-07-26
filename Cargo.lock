@@ -5957,6 +5957,7 @@ dependencies = [
  "dirs",
  "env_logger",
  "hex",
+ "libc",
  "log",
  "mistralrs",
  "portable-pty",
