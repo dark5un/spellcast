@@ -133,13 +133,10 @@ impl DictationListener {
                             Ok(Some(segment)) => {
                                 // Complete speech segment detected — extract PCM and run ASR
                                 Self::transcribe_segment(&segment, &pcm_buffer, &asr_engine, &tx);
-                                // Clear consumed PCM up to segment end
-                                let end = segment.end_sample() as usize;
-                                if end < pcm_buffer.len() {
-                                    pcm_buffer = pcm_buffer[end..].to_vec();
-                                } else {
-                                    pcm_buffer.clear();
-                                }
+                                // Do NOT trim pcm_buffer here. VAD segment indices are
+                                // absolute from stream start. Trimming would make subsequent
+                                // segments point to wrong data. Buffer grows for the
+                                // duration of dictation mode (~19MB for 5 min at 16kHz).
                             }
                             Ok(None) => {
                                 // No complete segment yet, keep accumulating
