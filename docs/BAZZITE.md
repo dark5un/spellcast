@@ -69,6 +69,8 @@ pw-record --list-targets 2>/dev/null || echo "PipeWire not found (install pipewi
 
 VoxKey injects keystrokes into the terminal via the `/dev/uinput` kernel device. This requires a udev rule and group membership on the **host** (Bazzite).
 
+> This udev rule is the foundation for both the current PTY-wrapper mode and the future system-wide uinput injector that will become the core input component of [Chaossynergy](https://github.com/Chaossynergy). The same rule works for both. The host setup won't need to change when the uinput spike replaces the PTY path.
+
 ### 1a. Create the udev rule
 
 ```bash

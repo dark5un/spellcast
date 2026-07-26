@@ -2,6 +2,8 @@
 
 VoxKey is a dictation-first terminal keyboard multiplexer for Linux that lets you speak your commands, code, and prose instead of typing them. It provides token-aware speech-to-text with inline editing, phonetic prediction, and a concept-to-word "explain" feature.
 
+This repository contains a **terminal PTY wrapper** — a working spike that intercepts input at the terminal level for development, testing, and standalone use. The dictation pipeline (audio capture → ASR → tokenization → injection) is the core; the output sink is swappable. A future **uinput injector** spike will drive `/dev/uinput` directly, replacing standard input system-wide as the core input component of [Chaossynergy](https://github.com/Chaossynergy) — an agent-native immutable Linux OS.
+
 ## Features
 
 - **Two modes**: Dictation (Caps Lock ON) and Raw passthrough (Caps Lock OFF)

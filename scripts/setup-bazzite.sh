@@ -67,6 +67,10 @@ if [ ! -f "${UINPUT_RULE_FILE}" ]; then
     sudo udevadm control --reload-rules
     sudo udevadm trigger
     echo "udev rule created and triggered."
+    echo ""
+    echo "  This rule is the foundation for both the PTY-wrapper mode and"
+    echo "  the future system-wide uinput injector for Chaossynergy."
+    echo "  It won't need to change when the integration surface evolves."
 else
     echo "udev rule already exists at ${UINPUT_RULE_FILE}"
 fi
