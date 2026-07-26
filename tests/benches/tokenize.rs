@@ -4,7 +4,7 @@
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-use voxkey::tokenizer::{HeuristicTokenizer, Tokenizer};
+use spellcast::tokenizer::{HeuristicTokenizer, Tokenizer};
 
 fn benchmark_heuristic_tokenizer(c: &mut Criterion) {
     let tokenizer = HeuristicTokenizer::new();

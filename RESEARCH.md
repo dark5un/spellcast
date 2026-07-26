@@ -1,4 +1,4 @@
-# VoxKey — Research Findings
+# Spellcast — Research Findings
 
 > Research conducted: 2026-07-26
 > Methodology: Web search of crate registries, GitHub repos, distrobox docs, NVIDIA forums
@@ -77,7 +77,7 @@ Rust-native ML framework by HuggingFace. Supports CUDA. Lighter weight but requi
 | License | MIT |
 | API | `PtySystem::openpty()` → master/slave pair, `spawn_command()` |
 
-**Justification**: Provides a cross-platform PTY API that lets VoxKey spawn a shell as a child process, intercept all I/O, and manipulate the terminal stream. Well-tested as the foundation of wezterm. The master/slave pattern maps directly to VoxKey's architecture: slave runs the shell, master lets VoxKey inject keystrokes and read output.
+**Justification**: Provides a cross-platform PTY API that lets Spellcast spawn a shell as a child process, intercept all I/O, and manipulate the terminal stream. Well-tested as the foundation of wezterm. The master/slave pattern maps directly to Spellcast's architecture: slave runs the shell, master lets Spellcast inject keystrokes and read output.
 
 ### Terminal UI: `ratatui` + `crossterm` — ✅ RECOMMENDED
 
@@ -89,7 +89,7 @@ Rust-native ML framework by HuggingFace. Supports CUDA. Lighter weight but requi
 | License | MIT |
 | MSRV | 1.86 (for 0.30) |
 
-**Justification**: Ratatui is the standard Rust TUI framework. The v0.30 workspace refactor improved compilation times and modularity. For VoxKey, we primarily need a status bar (mode indicator, token display, predictions) rather than a full-screen TUI. Crossterm handles event loop and raw mode. The status bar approach avoids the complexity of inline token highlighting in the terminal body.
+**Justification**: Ratatui is the standard Rust TUI framework. The v0.30 workspace refactor improved compilation times and modularity. For Spellcast, we primarily need a status bar (mode indicator, token display, predictions) rather than a full-screen TUI. Crossterm handles event loop and raw mode. The status bar approach avoids the complexity of inline token highlighting in the terminal body.
 
 ## 4. Audio Capture
 
@@ -160,7 +160,7 @@ IPA-based phonetic distance with full phoneme-level Levenshtein. More accurate f
 For the MVP, CUDA acceleration is handled by:
 - `whisper-rs` with `cuda` feature → whisper.cpp CUDA backend
 - `mistralrs` with `cuda` feature → internal CUDA kernels
-- Backend auto-detection: VoxKey checks `nvidia-smi` or CUDA driver availability at startup
+- Backend auto-detection: Spellcast checks `nvidia-smi` or CUDA driver availability at startup
 
 ### Vulkan: `wgpu` (compute) — FOR CPU/BACKUP
 
@@ -202,7 +202,7 @@ For the MVP, CPU fallback is sufficient. `wgpu` compute shaders can be added lat
 
 ### uinput Device Access
 
-- Host: udev rule (`/etc/udev/rules.d/99-voxkey-uinput.rules`) with `KERNEL=="uinput", MODE="0660", GROUP="input"`
+- Host: udev rule (`/etc/udev/rules.d/99-spellcast-uinput.rules`) with `KERNEL=="uinput", MODE="0660", GROUP="input"`
 - User must be in `input` group
 - Container: devices shared by default via distrobox's `/dev` passthrough
 - Verify: `ls -la /dev/uinput` from inside the container

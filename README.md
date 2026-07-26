@@ -1,6 +1,6 @@
-# VoxKey — Dictation-First Terminal Keyboard Multiplexer
+# Spellcast — Dictation-First Terminal Keyboard Multiplexer
 
-VoxKey is a dictation-first terminal keyboard multiplexer for Linux that lets you speak your commands, code, and prose instead of typing them. It provides token-aware speech-to-text with inline editing, phonetic prediction, and a concept-to-word "explain" feature.
+Spellcast is a dictation-first terminal keyboard multiplexer for Linux that lets you speak your commands, code, and prose instead of typing them. It provides token-aware speech-to-text with inline editing, phonetic prediction, and a concept-to-word "explain" feature.
 
 This repository contains a **terminal PTY wrapper** — a working spike that intercepts input at the terminal level for development, testing, and standalone use. The dictation pipeline (audio capture → ASR → tokenization → injection) is the core; the output sink is swappable. A future **uinput injector** spike will drive `/dev/uinput` directly, replacing standard input system-wide as the core input component of [Chaossynergy](https://github.com/Chaossynergy) — an agent-native immutable Linux OS.
 
@@ -10,7 +10,7 @@ This repository contains a **terminal PTY wrapper** — a working spike that int
 - **Token navigation**: Navigate between tokens (not words) with H/L keys
 - **Phonetic predictions**: Up to 3 alternatives ranked by phoneme distance
 - **Explain feature**: Describe a concept verbally, get the right token
-- **Kill switch**: Ctrl+Shift+Escape immediately disables VoxKey
+- **Kill switch**: Ctrl+Shift+Escape immediately disables Spellcast
 - **Local only**: All processing runs on your machine — no cloud
 - **GPU acceleration**: CUDA (NVIDIA) and CPU backends with auto-detection
 - **Persistent memory**: Learns from your corrections over time
@@ -28,8 +28,8 @@ This repository contains a **terminal PTY wrapper** — a working spike that int
 Run the setup script to create a distrobox container with all dependencies:
 
 ```bash
-git clone https://github.com/voxkey/voxkey.git
-cd voxkey
+git clone https://github.com/dark5un/spellcast.git
+cd spellcast
 
 # For NVIDIA GPU systems:
 ./scripts/setup-bazzite.sh --nvidia
@@ -38,7 +38,7 @@ cd voxkey
 ./scripts/setup-bazzite.sh
 
 # Enter the development environment:
-distrobox enter voxkey-dev
+distrobox enter spellcast-dev
 ```
 
 ### Build
@@ -70,7 +70,7 @@ cargo run --release
 
 ## Configuration
 
-VoxKey is configured via `~/.config/voxkey/config.toml`. A default config is generated on first run.
+Spellcast is configured via `~/.config/spellcast/config.toml`. A default config is generated on first run.
 
 ## License
 

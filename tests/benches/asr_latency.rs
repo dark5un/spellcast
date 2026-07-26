@@ -9,8 +9,8 @@ fn benchmark_asr_pipeline(_c: &mut Criterion) {
     // This requires a model file to be present.
     #[cfg(feature = "test-asr")]
     {
-        use voxkey::asr::NoopAsr;
-        use voxkey::audio::MockAudioCapture;
+        use spellcast::asr::NoopAsr;
+        use spellcast::audio::MockAudioCapture;
 
         let audio = MockAudioCapture::new().generate_test_buffer(3.0);
         let asr = NoopAsr::new();
@@ -25,7 +25,7 @@ fn benchmark_asr_pipeline(_c: &mut Criterion) {
 }
 
 fn benchmark_audio_conversion(c: &mut Criterion) {
-    use voxkey::audio::AudioBuffer;
+    use spellcast::audio::AudioBuffer;
 
     let samples: Vec<i16> = (0..48000).map(|i| (i as f32 * 0.5).sin() as i16).collect();
 

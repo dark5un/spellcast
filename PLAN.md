@@ -1,4 +1,4 @@
-# VoxKey — Implementation Plan
+# Spellcast — Implementation Plan
 
 ## Phase 0: Scaffold (Week 1)
 - [x] Create project structure (Cargo.toml, directories)
@@ -42,9 +42,9 @@
 - [ ] PTY spawn shell via `portable-pty`
 - [ ] Keystroke interception
 - [ ] Text injection into PTY
-- [ ] Raw passthrough mode (VoxKey transparent)
+- [ ] Raw passthrough mode (Spellcast transparent)
 - [ ] TDD: Mock PTY, test keystroke routing
-- Deliverable: Shell runs inside VoxKey, mode switching works
+- Deliverable: Shell runs inside Spellcast, mode switching works
 
 ## Phase 5: Tokenizer (Week 5-6)
 - [ ] Token types (Prose, CodeIdentifier, Punctuation, etc.)

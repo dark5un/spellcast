@@ -1,9 +1,9 @@
-# VoxKey — Bazzite Setup Guide
+# Spellcast — Bazzite Setup Guide
 
 > Target platform: **Bazzite Linux** (Fedora Silverblue/Kinoite derivative)
 > Tested on: Bazzite 42 / Fedora 42 Atomic
 
-VoxKey targets Bazzite because it provides a modern, immutable Linux desktop with Podman and Distrobox pre-installed — a perfect foundation for the dictation-first terminal multiplexer's containerized development and runtime model.
+Spellcast targets Bazzite because it provides a modern, immutable Linux desktop with Podman and Distrobox pre-installed — a perfect foundation for the dictation-first terminal multiplexer's containerized development and runtime model.
 
 ---
 
@@ -15,7 +15,7 @@ VoxKey targets Bazzite because it provides a modern, immutable Linux desktop wit
 - [Step 2: Create the Distrobox Container](#step-2-create-the-distrobox-container)
 - [Step 3: Install Build Dependencies](#step-3-install-build-dependencies)
 - [Step 4: Download Models](#step-4-download-models)
-- [Step 5: Build VoxKey](#step-5-build-voxkey)
+- [Step 5: Build Spellcast](#step-5-build-spellcast)
 - [Step 6: Verify Everything Works](#step-6-verify-everything-works)
 - [NVIDIA GPU Setup](#nvidia-gpu-setup)
 - [Audio Setup Details](#audio-setup-details)
@@ -35,7 +35,7 @@ Bazzite is an immutable (atomic) Fedora variant optimized for gaming and develop
 | System configuration | `ujust` commands + `rpm-ostree` overrides |
 | Device passthrough | udev rules + container device bind mounts |
 
-VoxKey follows this model: all build tools and runtimes live inside a Distrobox container. The only host-level changes are:
+Spellcast follows this model: all build tools and runtimes live inside a Distrobox container. The only host-level changes are:
 1. A udev rule for `/dev/uinput` (keyboard injection)
 2. NVIDIA GPU drivers if using a dedicated GPU (standard Bazzite install)
 
@@ -67,15 +67,15 @@ pw-record --list-targets 2>/dev/null || echo "PipeWire not found (install pipewi
 
 ## Step 1: Uinput Device Access (Host)
 
-VoxKey injects keystrokes into the terminal via the `/dev/uinput` kernel device. This requires a udev rule and group membership on the **host** (Bazzite).
+Spellcast injects keystrokes into the terminal via the `/dev/uinput` kernel device. This requires a udev rule and group membership on the **host** (Bazzite).
 
-> This udev rule is the foundation for both the current PTY-wrapper mode and the future system-wide uinput injector that will become the core input component of [Chaossynergy](https://github.com/Chaossynergy). The same rule works for both. The host setup won't need to change when the uinput spike replaces the PTY path.
+> This udev rule is the foundation for both the current PTY-wrapper mode and the future system-wide uinput injector that will become the core input component of [Chaossynergy](https://github.com/dark5un/Chaossynergy). The same rule works for both. The host setup won't need to change when the uinput spike replaces the PTY path.
 
 ### 1a. Create the udev rule
 
 ```bash
 echo 'KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input"' | \
-  sudo tee /etc/udev/rules.d/99-voxkey-uinput.rules
+  sudo tee /etc/udev/rules.d/99-spellcast-uinput.rules
 
 sudo udevadm control --reload-rules
 sudo udevadm trigger
@@ -102,13 +102,13 @@ groups | grep input
 
 ## Step 2: Create the Distrobox Container
 
-VoxKey runs inside a `fedora:latest` Distrobox container with device access.
+Spellcast runs inside a `fedora:latest` Distrobox container with device access.
 
 ### Basic container (CPU-only)
 
 ```bash
 distrobox create \
-    --name voxkey-dev \
+    --name spellcast-dev \
     --image fedora:latest \
     --additional-flags "--device /dev/uinput" \
     --additional-packages "sudo git curl wget"
@@ -118,7 +118,7 @@ distrobox create \
 
 ```bash
 distrobox create \
-    --name voxkey-dev \
+    --name spellcast-dev \
     --image fedora:latest \
     --nvidia \
     --additional-flags "--device /dev/uinput --device /dev/nvidia0 --device /dev/nvidiactl --device /dev/nvidia-uvm" \
@@ -131,10 +131,10 @@ distrobox create \
 
 ## Step 3: Install Build Dependencies
 
-Enter the container and install everything needed to build VoxKey.
+Enter the container and install everything needed to build Spellcast.
 
 ```bash
-distrobox enter voxkey-dev
+distrobox enter spellcast-dev
 ```
 
 Inside the container:
@@ -194,15 +194,15 @@ gcc --version
 
 ## Step 4: Download Models
 
-VoxKey needs a Whisper ASR model for speech-to-text. From inside the container (or from the host, targeting the container's home):
+Spellcast needs a Whisper ASR model for speech-to-text. From inside the container (or from the host, targeting the container's home):
 
 ```bash
 # From inside the container
-cd /path/to/voxkey
+cd /path/to/spellcast
 ./scripts/download-models.sh --asr-only
 ```
 
-This downloads the Whisper `base.en` model (~150 MB) from HuggingFace to `~/.config/voxkey/models/ggml-base.en.bin`.
+This downloads the Whisper `base.en` model (~150 MB) from HuggingFace to `~/.config/spellcast/models/ggml-base.en.bin`.
 
 Optional — LLM model for the explain feature:
 
@@ -214,12 +214,12 @@ This auto-downloads `Qwen3-4B` on first use when running with `--features llm`.
 
 ---
 
-## Step 5: Build VoxKey
+## Step 5: Build Spellcast
 
 From inside the container:
 
 ```bash
-cd /path/to/voxkey
+cd /path/to/spellcast
 cargo build --release
 ```
 
@@ -265,7 +265,7 @@ nvidia-smi 2>/dev/null || echo "No NVIDIA GPU detected"
 ### Build verification
 
 ```bash
-# Inside the container, from the voxkey directory
+# Inside the container, from the spellcast directory
 cargo build --release
 cargo test
 cargo clippy
@@ -308,7 +308,7 @@ ls /usr/lib64/libcuda* 2>/dev/null | head -1
 
 - **Driver**: Bazzite ships NVIDIA driver 575.x+ which supports Blackwell
 - **CUDA**: Blackwell needs CUDA 12.8+. If `fedora:latest` doesn't have it, the host's CUDA libraries (from `--nvidia`) provide PTX forward-compatibility — `whisper.cpp` and `mistralrs` ship PTX that JIT-compiles for Blackwell at runtime
-- **Fallback**: VoxKey automatically falls back to CPU if GPU is unavailable
+- **Fallback**: Spellcast automatically falls back to CPU if GPU is unavailable
 
 ---
 
@@ -320,7 +320,7 @@ Distrobox automatically shares the PipeWire socket from the host into the contai
 
 - **No additional configuration** is needed for most setups
 - The container's audio applications communicate with the host's PipeWire daemon
-- VoxKey uses `cpal` with its ALSA backend, which talks to PipeWire via `pipewire-alsa`
+- Spellcast uses `cpal` with its ALSA backend, which talks to PipeWire via `pipewire-alsa`
 
 ### Verifying audio inside the container
 
@@ -333,10 +333,10 @@ ls -la /run/user/$(id -u)/pipewire-0
 pw-record --list-targets
 
 # Record a 3-second test clip
-pw-record --duration 3 /tmp/voxkey-test.wav
+pw-record --duration 3 /tmp/spellcast-test.wav
 
 # Play it back
-pw-play /tmp/voxkey-test.wav
+pw-play /tmp/spellcast-test.wav
 ```
 
 ### If audio doesn't work
@@ -344,13 +344,13 @@ pw-play /tmp/voxkey-test.wav
 1. Ensure `pipewire-alsa` and `alsa-lib-devel` are installed in the container
 2. Check that the PipeWire socket is mounted:
    ```bash
-   distrobox enter voxkey-dev -- ls -la /run/user/$(id -u)/ | grep pipewire
+   distrobox enter spellcast-dev -- ls -la /run/user/$(id -u)/ | grep pipewire
    ```
 3. On the host, verify microphone access:
    ```bash
    pw-record --list-targets
    ```
-4. Restart the container: `distrobox stop voxkey-dev && distrobox enter voxkey-dev`
+4. Restart the container: `distrobox stop spellcast-dev && distrobox enter spellcast-dev`
 
 ---
 
@@ -372,7 +372,7 @@ pw-play /tmp/voxkey-test.wav
 | `pw-record: command not found` | `pipewire-utils` not installed | `sudo dnf install -y pipewire-utils` |
 | PipeWire socket missing in container | distrobox not sharing socket | Re-enter container: `distrobox stop && distrobox enter` |
 | `pw-record` finds no targets | Microphone not accessible | Check host microphone: `pactl list sources short` |
-| ALSA errors in VoxKey | `pipewire-alsa` not installed | `sudo dnf install -y pipewire-alsa alsa-lib-devel` |
+| ALSA errors in Spellcast | `pipewire-alsa` not installed | `sudo dnf install -y pipewire-alsa alsa-lib-devel` |
 
 ### GPU issues
 
@@ -395,7 +395,7 @@ pw-play /tmp/voxkey-test.wav
 
 | Issue | Recommendation |
 |---|---|
-| Container won't start | `distrobox rm --force voxkey-dev && ./scripts/setup-bazzite.sh` |
+| Container won't start | `distrobox rm --force spellcast-dev && ./scripts/setup-bazzite.sh` |
 | Shell stuck in raw mode | `reset` command or open new terminal |
 | Permission denied on `/dev/uinput` | Log out and back in, then re-enter container |
 
@@ -407,8 +407,8 @@ pw-play /tmp/voxkey-test.wav
 
 ```bash
 # Clone and enter the repo
-git clone https://github.com/voxkey/voxkey.git
-cd voxkey
+git clone https://github.com/spellcast/spellcast.git
+cd spellcast
 
 # Run the automated setup script (CPU)
 ./scripts/setup-bazzite.sh
@@ -417,7 +417,7 @@ cd voxkey
 ./scripts/setup-bazzite.sh --nvidia
 
 # Enter the container
-distrobox enter voxkey-dev
+distrobox enter spellcast-dev
 
 # Build and run
 cargo build --release
@@ -428,18 +428,18 @@ cargo run --release
 
 | Path | Purpose |
 |---|---|
-| `~/.config/voxkey/config.toml` | VoxKey configuration file |
-| `~/.config/voxkey/models/` | ASR and LLM model storage |
-| `~/.local/share/voxkey/` | Persistent memory database |
-| `/etc/udev/rules.d/99-voxkey-uinput.rules` | Host udev rule for uinput |
+| `~/.config/spellcast/config.toml` | Spellcast configuration file |
+| `~/.config/spellcast/models/` | ASR and LLM model storage |
+| `~/.local/share/spellcast/` | Persistent memory database |
+| `/etc/udev/rules.d/99-spellcast-uinput.rules` | Host udev rule for uinput |
 
 ### Useful commands
 
 ```bash
 # Container management
-distrobox enter voxkey-dev         # Enter the container
-distrobox stop voxkey-dev          # Stop the container
-distrobox rm --force voxkey-dev    # Remove the container (start fresh)
+distrobox enter spellcast-dev         # Enter the container
+distrobox stop spellcast-dev          # Stop the container
+distrobox rm --force spellcast-dev    # Remove the container (start fresh)
 
 # Container troubleshooting
 distrobox list                     # List all containers

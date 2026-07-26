@@ -6,7 +6,7 @@
 //! Auto-detects the best available backend at startup.
 
 use crate::config::BackendType;
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::error::{SpellcastError, SpellcastResult};
 
 /// A compute backend descriptor.
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ impl ComputeBackend {
 /// 1. CUDA (NVIDIA GPU)
 /// 2. Vulkan (generic GPU)
 /// 3. CPU (fallback)
-pub fn detect_backend(backend_type: &str) -> VoxKeyResult<ComputeBackend> {
+pub fn detect_backend(backend_type: &str) -> SpellcastResult<ComputeBackend> {
     match backend_type {
         "auto" => detect_auto(),
         "cuda" => detect_cuda().or_else(|_| {
@@ -51,14 +51,14 @@ pub fn detect_backend(backend_type: &str) -> VoxKeyResult<ComputeBackend> {
             Ok(ComputeBackend::cpu())
         }
         "cpu" => Ok(ComputeBackend::cpu()),
-        other => Err(VoxKeyError::Backend(format!(
+        other => Err(SpellcastError::Backend(format!(
             "Unknown backend type: {other}"
         ))),
     }
 }
 
 /// Auto-detect: try CUDA, then Vulkan, then CPU.
-fn detect_auto() -> VoxKeyResult<ComputeBackend> {
+fn detect_auto() -> SpellcastResult<ComputeBackend> {
     // Try CUDA first
     if let Ok(cuda) = detect_cuda() {
         log::info!("Auto-detected backend: {}", cuda.description);
@@ -71,7 +71,7 @@ fn detect_auto() -> VoxKeyResult<ComputeBackend> {
 }
 
 /// Try to detect a CUDA-capable NVIDIA GPU.
-fn detect_cuda() -> VoxKeyResult<ComputeBackend> {
+fn detect_cuda() -> SpellcastResult<ComputeBackend> {
     // Try running nvidia-smi to detect the GPU
     let output = std::process::Command::new("nvidia-smi")
         .args([
@@ -79,10 +79,10 @@ fn detect_cuda() -> VoxKeyResult<ComputeBackend> {
             "--format=csv,noheader",
         ])
         .output()
-        .map_err(|_| VoxKeyError::Backend("nvidia-smi not found".to_string()))?;
+        .map_err(|_| SpellcastError::Backend("nvidia-smi not found".to_string()))?;
 
     if !output.status.success() {
-        return Err(VoxKeyError::Backend(
+        return Err(SpellcastError::Backend(
             "nvidia-smi returned non-zero exit".to_string(),
         ));
     }
@@ -91,7 +91,7 @@ fn detect_cuda() -> VoxKeyResult<ComputeBackend> {
     let line = stdout.lines().next().unwrap_or("");
 
     if line.is_empty() {
-        return Err(VoxKeyError::Backend(
+        return Err(SpellcastError::Backend(
             "No NVIDIA GPU detected by nvidia-smi".to_string(),
         ));
     }

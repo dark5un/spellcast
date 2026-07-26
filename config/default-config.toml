@@ -8,7 +8,7 @@ device = "default"
 
 [asr]
 engine = "whisper-cpp"
-model_path = "~/.config/voxkey/models/ggml-base.en.bin"
+model_path = "~/.config/spellcast/models/ggml-base.en.bin"
 language = "en"
 
 [llm]
@@ -34,7 +34,7 @@ mode = "heuristic"
 default_context = "prose"
 
 [database]
-path = "~/.config/voxkey/voxkey.db"
+path = "~/.config/spellcast/spellcast.db"
 
 [languages]
 primary = "en"

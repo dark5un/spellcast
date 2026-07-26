@@ -2,7 +2,7 @@
 
 //! Terminal integration — PTY wrapper, status bar, and rendering.
 //!
-//! VoxKey operates as a PTY wrapper:
+//! Spellcast operates as a PTY wrapper:
 //! - Spawns the user's shell in a pseudo-terminal
 //! - Intercepts keyboard input (raw mode via crossterm)
 //! - Injects processed text into the PTY
@@ -15,8 +15,8 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
-use crate::config::VoxKeyConfig;
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::config::SpellcastConfig;
+use crate::error::{SpellcastError, SpellcastResult};
 use crate::memory::MemoryStore;
 use crate::modes::{Mode, ModeController};
 use crate::tokenizer::{HeuristicTokenizer, TokenContext, TokenStream};
@@ -57,25 +57,25 @@ impl Drop for TerminalGuard {
     }
 }
 
-/// Run the main VoxKey terminal loop.
+/// Run the main Spellcast terminal loop.
 ///
 /// This function:
 /// 1. Spawns the user's shell in a PTY
 /// 2. Enters raw mode and starts the event loop
 /// 3. Handles mode switching, token navigation, dictation, and explain
 pub fn run_terminal_loop(
-    config: &VoxKeyConfig,
+    config: &SpellcastConfig,
     mode_ctrl: &mut ModeController,
     _memory: &MemoryStore,
     shell: Option<&str>,
-) -> VoxKeyResult<()> {
+) -> SpellcastResult<()> {
     // Initialize terminal
     terminal::enable_raw_mode()
-        .map_err(|e| VoxKeyError::TerminalPty(format!("Failed to enable raw mode: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalPty(format!("Failed to enable raw mode: {e}")))?;
 
     let mut stdout = std::io::stdout();
     crossterm::execute!(stdout, EnterAlternateScreen)
-        .map_err(|e| VoxKeyError::TerminalRender(format!("Failed to enter alt screen: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to enter alt screen: {e}")))?;
 
     // Install signal handlers and ensure terminal restoration on drop
     let _guard = TerminalGuard::new();
@@ -90,11 +90,11 @@ pub fn run_terminal_loop(
 }
 
 fn run_inner(
-    config: &VoxKeyConfig,
+    config: &SpellcastConfig,
     mode_ctrl: &mut ModeController,
     _memory: &MemoryStore,
     shell: Option<&str>,
-) -> VoxKeyResult<()> {
+) -> SpellcastResult<()> {
     // Create the tokenizer
     let tokenizer = HeuristicTokenizer::new();
 
@@ -104,7 +104,7 @@ fn run_inner(
 
     let pair = pty_system
         .openpty(size)
-        .map_err(|e| VoxKeyError::TerminalPty(format!("Failed to create PTY: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalPty(format!("Failed to create PTY: {e}")))?;
 
     // Spawn the shell
     let shell_path = shell
@@ -115,7 +115,7 @@ fn run_inner(
     let mut child = pair
         .slave
         .spawn_command(cmd)
-        .map_err(|e| VoxKeyError::TerminalPty(format!("Failed to spawn shell: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalPty(format!("Failed to spawn shell: {e}")))?;
 
     // Get PTY reader and writer
     let mut pty_reader = pair
@@ -126,7 +126,7 @@ fn run_inner(
     let mut pty_writer = pair
         .master
         .take_writer()
-        .map_err(|_| VoxKeyError::TerminalPty("Failed to get PTY writer".to_string()))?;
+        .map_err(|_| SpellcastError::TerminalPty("Failed to get PTY writer".to_string()))?;
 
     // State for token navigation
     let mut current_tokens: TokenStream = TokenStream::new(TokenContext::Prose);
@@ -177,13 +177,13 @@ fn run_inner(
 
         // Check for keyboard input
         if !event::poll(std::time::Duration::from_millis(10))
-            .map_err(|e| VoxKeyError::TerminalPty(format!("Event poll error: {e}")))?
+            .map_err(|e| SpellcastError::TerminalPty(format!("Event poll error: {e}")))?
         {
             continue;
         }
 
         match event::read()
-            .map_err(|e| VoxKeyError::TerminalPty(format!("Event read error: {e}")))?
+            .map_err(|e| SpellcastError::TerminalPty(format!("Event read error: {e}")))?
         {
             Event::Key(key_event) => {
                 // Check kill switch first
@@ -192,9 +192,9 @@ fn run_inner(
                     KILL_SWITCH_ENGAGED
                         .store(mode_ctrl.current_mode().is_killed(), Ordering::SeqCst);
                     if mode_ctrl.current_mode().is_killed() {
-                        log::info!("Kill switch engaged — VoxKey disabled");
+                        log::info!("Kill switch engaged — Spellcast disabled");
                     } else {
-                        log::info!("Kill switch disengaged — VoxKey re-enabled");
+                        log::info!("Kill switch disengaged — Spellcast re-enabled");
                     }
                     continue;
                 }
@@ -254,7 +254,7 @@ fn render_status_bar(
     tokens: &TokenStream,
     token_index: Option<usize>,
     predictions: &[String],
-) -> VoxKeyResult<()> {
+) -> SpellcastResult<()> {
     let mode_str = mode.to_string();
 
     // Build the status line
@@ -274,7 +274,7 @@ fn render_status_bar(
 
     // Clear the current line, move to bottom, write status
     let (cols, _rows) = crossterm::terminal::size()
-        .map_err(|e| VoxKeyError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
 
     let status_len = status.len() as u16;
     let padding = cols.saturating_sub(status_len);
@@ -290,7 +290,7 @@ fn render_status_bar(
     // Save cursor, move to bottom, write status, restore cursor
     // This uses the "scroll bottom" approach via ANSI escape
     let (_, rows) = crossterm::terminal::size()
-        .map_err(|e| VoxKeyError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
 
     let bottom_row = rows - 1;
     print!("\x1b[s\x1b[{};1H{}", bottom_row + 1, padded_status);
@@ -310,8 +310,8 @@ fn handle_dictation_key(
     pending_text: &mut String,
     predictions: &mut Vec<String>,
     _tokenizer: &HeuristicTokenizer,
-    _config: &VoxKeyConfig,
-) -> VoxKeyResult<()> {
+    _config: &SpellcastConfig,
+) -> SpellcastResult<()> {
     match key.code {
         KeyCode::Char('h') | KeyCode::Left if key.modifiers.is_empty() => {
             // Navigate to previous token
@@ -422,65 +422,65 @@ fn is_caps_lock_toggle(_key: &KeyEvent) -> bool {
 }
 
 /// Write a key event to the PTY.
-fn write_pty(pty: &mut Box<dyn Write + Send>, key: &KeyEvent) -> VoxKeyResult<()> {
+fn write_pty(pty: &mut Box<dyn Write + Send>, key: &KeyEvent) -> SpellcastResult<()> {
     match key.code {
         KeyCode::Char(c) => {
             let mut buf = [0u8; 4];
             let s = c.encode_utf8(&mut buf);
             pty.write_all(s.as_bytes())
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Enter => {
             pty.write_all(b"\r")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Backspace => {
             pty.write_all(b"\x7f")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Tab => {
             pty.write_all(b"\t")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Esc => {
             pty.write_all(b"\x1b")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Left => {
             pty.write_all(b"\x1b[D")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Right => {
             pty.write_all(b"\x1b[C")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Up => {
             pty.write_all(b"\x1b[A")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Down => {
             pty.write_all(b"\x1b[B")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Home => {
             pty.write_all(b"\x1b[H")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::End => {
             pty.write_all(b"\x1b[F")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::Delete => {
             pty.write_all(b"\x1b[3~")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::PageUp => {
             pty.write_all(b"\x1b[5~")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         KeyCode::PageDown => {
             pty.write_all(b"\x1b[6~")
-                .map_err(|e| VoxKeyError::TerminalPty(format!("PTY write error: {e}")))?;
+                .map_err(|e| SpellcastError::TerminalPty(format!("PTY write error: {e}")))?;
         }
         _ => {
             // Unsupported key — ignore
@@ -488,14 +488,14 @@ fn write_pty(pty: &mut Box<dyn Write + Send>, key: &KeyEvent) -> VoxKeyResult<()
     }
 
     pty.flush()
-        .map_err(|e| VoxKeyError::TerminalPty(format!("PTY flush error: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalPty(format!("PTY flush error: {e}")))?;
     Ok(())
 }
 
 /// Get the current terminal size.
-fn get_terminal_size() -> VoxKeyResult<PtySize> {
+fn get_terminal_size() -> SpellcastResult<PtySize> {
     let (cols, rows) = crossterm::terminal::size()
-        .map_err(|e| VoxKeyError::TerminalPty(format!("Failed to get terminal size: {e}")))?;
+        .map_err(|e| SpellcastError::TerminalPty(format!("Failed to get terminal size: {e}")))?;
     Ok(PtySize {
         rows,
         cols,

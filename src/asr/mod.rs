@@ -7,7 +7,7 @@
 //! - `NoopAsr` — mock/stub for testing
 
 use crate::audio::AudioBuffer;
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::error::{SpellcastError, SpellcastResult};
 
 /// Result of ASR inference.
 #[derive(Debug, Clone)]
@@ -40,10 +40,10 @@ impl AsrResult {
 /// Trait for ASR (speech-to-text) engines.
 pub trait AsrEngine: Send {
     /// Load a model from the given path.
-    fn load_model(&mut self, model_path: &str) -> VoxKeyResult<()>;
+    fn load_model(&mut self, model_path: &str) -> SpellcastResult<()>;
 
     /// Transcribe an audio buffer to text.
-    fn transcribe(&self, audio: &AudioBuffer) -> VoxKeyResult<AsrResult>;
+    fn transcribe(&self, audio: &AudioBuffer) -> SpellcastResult<AsrResult>;
 
     /// Check if the engine is ready for inference.
     fn is_ready(&self) -> bool;
@@ -60,7 +60,7 @@ pub struct WhisperAsr {
 #[cfg(feature = "whisper-rs")]
 impl WhisperAsr {
     /// Create a new Whisper ASR instance.
-    pub fn new(model_path: &str, _backend: &str) -> VoxKeyResult<Self> {
+    pub fn new(model_path: &str, _backend: &str) -> SpellcastResult<Self> {
         let ctx = Self::load_context(model_path)?;
         Ok(Self {
             ctx: Some(ctx),
@@ -69,33 +69,33 @@ impl WhisperAsr {
         })
     }
 
-    fn load_context(model_path: &str) -> VoxKeyResult<whisper_rs::WhisperContext> {
+    fn load_context(model_path: &str) -> SpellcastResult<whisper_rs::WhisperContext> {
         let params = whisper_rs::WhisperContextParameters::default();
         whisper_rs::WhisperContext::new_with_params(model_path, params)
-            .map_err(|e| VoxKeyError::AsrModel(format!("Failed to load Whisper model: {e}")))
+            .map_err(|e| SpellcastError::AsrModel(format!("Failed to load Whisper model: {e}")))
     }
 }
 
 #[cfg(feature = "whisper-rs")]
 impl AsrEngine for WhisperAsr {
-    fn load_model(&mut self, model_path: &str) -> VoxKeyResult<()> {
+    fn load_model(&mut self, model_path: &str) -> SpellcastResult<()> {
         self.ctx = Some(Self::load_context(model_path)?);
         self.model_path = model_path.to_string();
         Ok(())
     }
 
-    fn transcribe(&self, audio: &AudioBuffer) -> VoxKeyResult<AsrResult> {
+    fn transcribe(&self, audio: &AudioBuffer) -> SpellcastResult<AsrResult> {
         let ctx = self
             .ctx
             .as_ref()
-            .ok_or_else(|| VoxKeyError::AsrInference("Model not loaded".to_string()))?;
+            .ok_or_else(|| SpellcastError::AsrInference("Model not loaded".to_string()))?;
 
         let start = std::time::Instant::now();
 
         // Create a state (requires &mut)
         let mut state = ctx
             .create_state()
-            .map_err(|e| VoxKeyError::AsrInference(format!("Failed to create state: {e}")))?;
+            .map_err(|e| SpellcastError::AsrInference(format!("Failed to create state: {e}")))?;
 
         // Convert audio to f32
         let audio_f32 = audio.to_f32();
@@ -113,14 +113,14 @@ impl AsrEngine for WhisperAsr {
 
         state
             .full(params, &audio_f32)
-            .map_err(|e| VoxKeyError::AsrInference(format!("Transcription failed: {e}")))?;
+            .map_err(|e| SpellcastError::AsrInference(format!("Transcription failed: {e}")))?;
 
         // Collect text from all segments using the iterator
         let mut text = String::new();
         for segment in state.as_iter() {
             let seg_text = segment
                 .to_str()
-                .map_err(|e| VoxKeyError::AsrInference(e.to_string()))?;
+                .map_err(|e| SpellcastError::AsrInference(e.to_string()))?;
             text.push_str(seg_text);
             text.push(' ');
         }
@@ -157,11 +157,11 @@ impl NoopAsr {
 }
 
 impl AsrEngine for NoopAsr {
-    fn load_model(&mut self, _model_path: &str) -> VoxKeyResult<()> {
+    fn load_model(&mut self, _model_path: &str) -> SpellcastResult<()> {
         Ok(())
     }
 
-    fn transcribe(&self, _audio: &AudioBuffer) -> VoxKeyResult<AsrResult> {
+    fn transcribe(&self, _audio: &AudioBuffer) -> SpellcastResult<AsrResult> {
         Ok(AsrResult::new("test transcription"))
     }
 

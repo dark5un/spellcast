@@ -6,9 +6,14 @@
 //! punctuation, prose words, or operators. The tokenizer determines token
 //! boundaries based on the detected context (prose vs code).
 
+pub mod code_spelling;
+pub mod symbol_dictation;
+#[cfg(feature = "tree-sitter")]
+pub mod tree_sitter;
+
 use regex::Regex;
 
-use crate::error::VoxKeyResult;
+use crate::error::SpellcastResult;
 
 /// The detected context type for tokenization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,6 +44,8 @@ pub enum TokenType {
     Word,
     /// A code identifier (e.g., "fooBar", "foo_bar")
     CodeIdentifier,
+    /// A language keyword (e.g., "if", "return", "fn")
+    Keyword,
     /// A punctuation character (e.g., ".", ",", "!")
     Punctuation,
     /// An operator (e.g., "->", "=>", "::")
@@ -49,6 +56,8 @@ pub enum TokenType {
     Number,
     /// A string literal delimiter or content
     StringLiteral,
+    /// A code comment
+    Comment,
     /// Any other token
     Other,
 }
@@ -115,11 +124,11 @@ impl TokenStream {
 /// Tokenizer trait.
 pub trait Tokenizer: Send {
     /// Tokenize the given text, detecting context automatically.
-    fn tokenize(&self, text: &str) -> VoxKeyResult<TokenStream>;
+    fn tokenize(&self, text: &str) -> SpellcastResult<TokenStream>;
 
     /// Tokenize with an explicit context hint.
     fn tokenize_with_context(&self, text: &str, context: TokenContext)
-    -> VoxKeyResult<TokenStream>;
+    -> SpellcastResult<TokenStream>;
 
     /// Detect the context of the given text.
     fn detect_context(&self, text: &str) -> TokenContext;
@@ -179,7 +188,7 @@ impl Default for HeuristicTokenizer {
 }
 
 impl Tokenizer for HeuristicTokenizer {
-    fn tokenize(&self, text: &str) -> VoxKeyResult<TokenStream> {
+    fn tokenize(&self, text: &str) -> SpellcastResult<TokenStream> {
         let context = self.detect_context(text);
         self.tokenize_with_context(text, context)
     }
@@ -188,7 +197,7 @@ impl Tokenizer for HeuristicTokenizer {
         &self,
         text: &str,
         _context: TokenContext,
-    ) -> VoxKeyResult<TokenStream> {
+    ) -> SpellcastResult<TokenStream> {
         let mut tokens = Vec::new();
         let chars: Vec<(usize, char)> = text.char_indices().collect();
         let len = chars.len();

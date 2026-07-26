@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! Error types for the VoxKey system.
+//! Error types for the Spellcast system.
 //!
-//! A unified error type `VoxKeyError` with variants for each subsystem,
+//! A unified error type `SpellcastError` with variants for each subsystem,
 //! plus automatic conversion from common error types.
 
 use thiserror::Error;
 
-/// Top-level error type for all VoxKey operations.
+/// Top-level error type for all Spellcast operations.
 #[derive(Error, Debug)]
-pub enum VoxKeyError {
+pub enum SpellcastError {
     // -- Config errors --
     /// Config file not found or unreadable.
     #[error("config error: {0}")]
@@ -91,17 +91,17 @@ pub enum VoxKeyError {
 }
 
 /// Convenience result type alias.
-pub type VoxKeyResult<T> = Result<T, VoxKeyError>;
+pub type SpellcastResult<T> = Result<T, SpellcastError>;
 
-impl From<String> for VoxKeyError {
+impl From<String> for SpellcastError {
     fn from(s: String) -> Self {
-        VoxKeyError::Internal(s)
+        SpellcastError::Internal(s)
     }
 }
 
-impl From<&str> for VoxKeyError {
+impl From<&str> for SpellcastError {
     fn from(s: &str) -> Self {
-        VoxKeyError::Internal(s.to_string())
+        SpellcastError::Internal(s.to_string())
     }
 }
 
@@ -111,31 +111,31 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let err = VoxKeyError::Config("missing file".to_string());
+        let err = SpellcastError::Config("missing file".to_string());
         assert_eq!(err.to_string(), "config error: missing file");
     }
 
     #[test]
     fn test_error_from_string() {
-        let err: VoxKeyError = "something broke".into();
-        assert!(matches!(err, VoxKeyError::Internal(_)));
+        let err: SpellcastError = "something broke".into();
+        assert!(matches!(err, SpellcastError::Internal(_)));
     }
 
     #[test]
     fn test_error_from_str() {
-        let err: VoxKeyError = VoxKeyError::from("test error");
-        assert!(matches!(err, VoxKeyError::Internal(_)));
+        let err: SpellcastError = SpellcastError::from("test error");
+        assert!(matches!(err, SpellcastError::Internal(_)));
     }
 
     #[test]
     fn test_audio_error() {
-        let err = VoxKeyError::Audio("no device found".to_string());
+        let err = SpellcastError::Audio("no device found".to_string());
         assert_eq!(err.to_string(), "audio error: no device found");
     }
 
     #[test]
     fn test_backend_error() {
-        let err = VoxKeyError::Backend("CUDA unavailable".to_string());
+        let err = SpellcastError::Backend("CUDA unavailable".to_string());
         assert_eq!(err.to_string(), "backend error: CUDA unavailable");
     }
 }

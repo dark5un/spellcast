@@ -10,7 +10,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, params};
 
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::error::{SpellcastError, SpellcastResult};
 
 /// An explained token record.
 #[derive(Debug, Clone)]
@@ -51,11 +51,11 @@ pub struct MemoryStore {
 
 impl MemoryStore {
     /// Open or create the database at the given path.
-    pub fn open(path: &str) -> VoxKeyResult<Self> {
+    pub fn open(path: &str) -> SpellcastResult<Self> {
         // Ensure parent directory exists
         if let Some(parent) = Path::new(path).parent() {
             std::fs::create_dir_all(parent).map_err(|_| {
-                VoxKeyError::Database(rusqlite::Error::InvalidPath(parent.to_path_buf()))
+                SpellcastError::Database(rusqlite::Error::InvalidPath(parent.to_path_buf()))
             })?;
         }
 
@@ -67,7 +67,7 @@ impl MemoryStore {
     }
 
     /// Create an in-memory database for testing.
-    pub fn open_in_memory() -> VoxKeyResult<Self> {
+    pub fn open_in_memory() -> SpellcastResult<Self> {
         let conn = Connection::open_in_memory()?;
         let store = Self { conn };
         store.initialize_schema()?;
@@ -75,7 +75,7 @@ impl MemoryStore {
     }
 
     /// Initialize database schema.
-    fn initialize_schema(&self) -> VoxKeyResult<()> {
+    fn initialize_schema(&self) -> SpellcastResult<()> {
         self.conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS explained_tokens (
@@ -121,7 +121,7 @@ impl MemoryStore {
     pub fn lookup_explained(
         &self,
         explanation_text: &str,
-    ) -> VoxKeyResult<Option<ExplainedRecord>> {
+    ) -> SpellcastResult<Option<ExplainedRecord>> {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(explanation_text.as_bytes());
@@ -167,7 +167,7 @@ impl MemoryStore {
         language_context: &str,
         explanation_text: &str,
         token: &str,
-    ) -> VoxKeyResult<ExplainedRecord> {
+    ) -> SpellcastResult<ExplainedRecord> {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(explanation_text.as_bytes());
@@ -204,7 +204,7 @@ impl MemoryStore {
     pub fn lookup_phonetic_correction(
         &self,
         spoken_text: &str,
-    ) -> VoxKeyResult<Option<PhoneticCorrection>> {
+    ) -> SpellcastResult<Option<PhoneticCorrection>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, spoken_text, corrected_token, language_context,
                     created_at, usage_count
@@ -234,7 +234,7 @@ impl MemoryStore {
         spoken_text: &str,
         corrected_token: &str,
         language_context: &str,
-    ) -> VoxKeyResult<()> {
+    ) -> SpellcastResult<()> {
         // If there's already an entry for this spoken text, increment its count
         let updated = self.conn.execute(
             "UPDATE phonetic_corrections
@@ -255,7 +255,7 @@ impl MemoryStore {
     }
 
     /// Get the total number of records.
-    pub fn stats(&self) -> VoxKeyResult<(usize, usize)> {
+    pub fn stats(&self) -> SpellcastResult<(usize, usize)> {
         let explained: i64 =
             self.conn
                 .query_row("SELECT COUNT(*) FROM explained_tokens", [], |row| {

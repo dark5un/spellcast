@@ -2,8 +2,8 @@
 
 //! Integration tests for the audio pipeline.
 
-use voxkey::audio::{AudioBuffer, MockAudioCapture};
-use voxkey::asr::{AsrEngine, NoopAsr};
+use spellcast::audio::{AudioBuffer, MockAudioCapture};
+use spellcast::asr::{AsrEngine, NoopAsr};
 
 #[test]
 fn test_audio_to_asr_pipeline() {

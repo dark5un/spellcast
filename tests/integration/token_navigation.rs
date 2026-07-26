@@ -2,9 +2,9 @@
 
 //! Integration tests for token navigation and editing.
 
-use voxkey::modes::{Mode, ModeController};
-use voxkey::tokenizer::{HeuristicTokenizer, Token, TokenContext, TokenStream, TokenType, Tokenizer};
-use voxkey::predictor::Predictor;
+use spellcast::modes::{Mode, ModeController};
+use spellcast::tokenizer::{HeuristicTokenizer, Token, TokenContext, TokenStream, TokenType, Tokenizer};
+use spellcast::predictor::Predictor;
 
 #[test]
 fn test_token_navigation_basic() {

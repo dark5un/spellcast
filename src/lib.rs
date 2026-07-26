@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! # VoxKey
+//! # Spellcast
 //!
-//! VoxKey is a dictation-first terminal keyboard multiplexer for Linux.
+//! Spellcast is a dictation-first terminal keyboard multiplexer for Linux.
 //! It provides token-aware speech-to-text with inline editing, phonetic prediction,
 //! and a concept-to-word "explain" feature.
 //!
 //! ## Architecture
 //!
-//! VoxKey sits between the user and their shell using a PTY wrapper:
+//! Spellcast sits between the user and their shell using a PTY wrapper:
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────┐
-//! │  VoxKey (PTY Wrapper)                               │
+//! │  Spellcast (PTY Wrapper)                               │
 //! │  ┌──────────────────────────────────────────────┐  │
 //! │  │  Status Bar: [DICT] token | 1:word 2:word   │  │
 //! │  └──────────────────────────────────────────────┘  │
@@ -46,6 +46,6 @@ pub mod predictor;
 pub mod terminal;
 pub mod tokenizer;
 
-pub use config::VoxKeyConfig;
-pub use error::VoxKeyError;
+pub use config::SpellcastConfig;
+pub use error::SpellcastError;
 pub use modes::{Mode, ModeController};

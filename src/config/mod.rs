@@ -2,14 +2,14 @@
 
 //! Configuration loading, validation, and default generation.
 //!
-//! Configuration is loaded from a TOML file at `~/.config/voxkey/config.toml`.
+//! Configuration is loaded from a TOML file at `~/.config/spellcast/config.toml`.
 //! Missing files fall back to defaults; malformed files return an error.
 
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::error::{SpellcastError, SpellcastResult};
 
 /// Backend configuration: which compute backend to use.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,7 +78,7 @@ impl Default for AsrConfig {
     fn default() -> Self {
         Self {
             engine: "whisper-cpp".to_string(),
-            model_path: "~/.config/voxkey/models/ggml-base.en.bin".to_string(),
+            model_path: "~/.config/spellcast/models/ggml-base.en.bin".to_string(),
             language: "en".to_string(),
         }
     }
@@ -167,7 +167,7 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            path: "~/.config/voxkey/voxkey.db".to_string(),
+            path: "~/.config/spellcast/spellcast.db".to_string(),
         }
     }
 }
@@ -188,7 +188,7 @@ impl Default for LanguageConfig {
     }
 }
 
-/// Top-level VoxKey configuration.
+/// Top-level Spellcast configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackendConfig {
     /// Compute backend type
@@ -204,9 +204,9 @@ impl Default for BackendConfig {
     }
 }
 
-/// Top-level VoxKey configuration.
+/// Top-level Spellcast configuration.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct VoxKeyConfig {
+pub struct SpellcastConfig {
     #[serde(default)]
     pub backend: BackendConfig,
     #[serde(default)]
@@ -229,24 +229,24 @@ pub struct VoxKeyConfig {
 ///
 /// Returns default configuration if the file doesn't exist.
 /// Returns an error if the file exists but cannot be parsed.
-pub fn load_config(path: &Path) -> VoxKeyResult<VoxKeyConfig> {
+pub fn load_config(path: &Path) -> SpellcastResult<SpellcastConfig> {
     let expanded = shellexpand::tilde(&path.to_string_lossy()).to_string();
     let config_path = Path::new(&expanded);
 
     if !config_path.exists() {
         log::info!("Config file {:?} not found, using defaults", config_path);
-        return Ok(VoxKeyConfig::default());
+        return Ok(SpellcastConfig::default());
     }
 
     let contents =
-        std::fs::read_to_string(config_path).map_err(|e| VoxKeyError::Config(e.to_string()))?;
-    let config: VoxKeyConfig = toml::from_str(&contents)?;
+        std::fs::read_to_string(config_path).map_err(|e| SpellcastError::Config(e.to_string()))?;
+    let config: SpellcastConfig = toml::from_str(&contents)?;
     Ok(config)
 }
 
 /// Generate the default configuration as a TOML string.
 pub fn generate_default_config() -> String {
-    let config = VoxKeyConfig::default();
+    let config = SpellcastConfig::default();
     toml::to_string_pretty(&config).expect("default config should serialize")
 }
 
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = VoxKeyConfig::default();
+        let config = SpellcastConfig::default();
         assert_eq!(config.audio.sample_rate, 16000);
         assert_eq!(config.asr.engine, "whisper-cpp");
         assert_eq!(config.keys.mode_toggle, "CapsLock");
@@ -298,7 +298,7 @@ device = "default"
 
 [asr]
 engine = "whisper-cpp"
-model_path = "~/.config/voxkey/models/ggml-base.en.bin"
+model_path = "~/.config/spellcast/models/ggml-base.en.bin"
 language = "en"
 "#;
         std::fs::write(&path, toml_content).unwrap();
@@ -309,7 +309,7 @@ language = "en"
     #[test]
     fn test_generate_default_config_is_valid() {
         let toml_str = generate_default_config();
-        let config: VoxKeyConfig = toml::from_str(&toml_str).unwrap();
+        let config: SpellcastConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(config.audio.sample_rate, 16000);
     }
 }

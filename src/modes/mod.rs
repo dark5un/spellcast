@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 
-//! Mode controller — manages the VoxKey mode state machine.
+//! Mode controller — manages the Spellcast mode state machine.
 //!
 //! Modes:
 //! - **Dictation** (default when Caps Lock is ON): Speech becomes text.
 //!   Navigation/editing keys operate on tokens.
-//! - **Raw** (Caps Lock OFF): VoxKey is transparent, all keys pass through.
-//! - **Killed**: Kill switch engaged, VoxKey fully disabled until toggle.
+//! - **Raw** (Caps Lock OFF): Spellcast is transparent, all keys pass through.
+//! - **Killed**: Kill switch engaged, Spellcast fully disabled until toggle.
 
 use serde::{Deserialize, Serialize};
 
-/// VoxKey operating mode.
+/// Spellcast operating mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Mode {
     /// Dictation mode: speech → text, token navigation active
     Dictation,
     /// Raw passthrough: all keystrokes pass through transparently
     Raw,
-    /// Killed: VoxKey fully disabled, hard panic mode
+    /// Killed: Spellcast fully disabled, hard panic mode
     Killed,
 }
 
 impl Mode {
-    /// Returns true if VoxKey should process input.
+    /// Returns true if Spellcast should process input.
     pub fn is_active(self) -> bool {
         matches!(self, Mode::Dictation)
     }
 
-    /// Returns true if VoxKey is in raw passthrough.
+    /// Returns true if Spellcast is in raw passthrough.
     pub fn is_raw(self) -> bool {
         matches!(self, Mode::Raw)
     }
@@ -48,7 +48,7 @@ impl std::fmt::Display for Mode {
     }
 }
 
-/// Controller for VoxKey mode transitions.
+/// Controller for Spellcast mode transitions.
 ///
 /// Handles:
 /// - Caps Lock toggle (Dictation ↔ Raw)
@@ -107,7 +107,7 @@ impl ModeController {
         self.caps_lock_state
     }
 
-    /// Engage the kill switch — forces Killed mode, VoxKey becomes transparent.
+    /// Engage the kill switch — forces Killed mode, Spellcast becomes transparent.
     pub fn engage_kill_switch(&mut self) -> Mode {
         self.mode = Mode::Killed;
         self.kill_switch_engaged = true;

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# setup-bazzite.sh — Prepare a Bazzite Linux system for VoxKey development.
+# setup-bazzite.sh — Prepare a Bazzite Linux system for Spellcast development.
 #
 # This script:
 # 1. Creates a distrobox container using fedora:latest as the base image
@@ -16,16 +16,16 @@
 #   - NVIDIA drivers installed on host (if using NVIDIA GPU)
 #
 # Usage:
-#   ./setup-bazzite.sh [--name voxkey-dev] [--nvidia]
+#   ./setup-bazzite.sh [--name spellcast-dev] [--nvidia]
 #
 # Options:
-#   --name NAME    Container name (default: voxkey-dev)
+#   --name NAME    Container name (default: spellcast-dev)
 #   --nvidia       Include NVIDIA GPU passthrough (--nvidia flag for distrobox)
 #   --help         Show this help
 
 set -euo pipefail
 
-CONTAINER_NAME="voxkey-dev"
+CONTAINER_NAME="spellcast-dev"
 USE_NVIDIA=false
 
 # Parse arguments
@@ -40,18 +40,18 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            echo "Usage: $0 [--name voxkey-dev] [--nvidia]"
+            echo "Usage: $0 [--name spellcast-dev] [--nvidia]"
             exit 0
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--name voxkey-dev] [--nvidia]"
+            echo "Usage: $0 [--name spellcast-dev] [--nvidia]"
             exit 1
             ;;
     esac
 done
 
-echo "=== VoxKey Bazzite Setup ==="
+echo "=== Spellcast Bazzite Setup ==="
 echo "Container name: ${CONTAINER_NAME}"
 echo "NVIDIA support: ${USE_NVIDIA}"
 echo ""
@@ -61,7 +61,7 @@ echo ""
 # ---------------------------------------------------------------
 echo "=== Step 1: Setting up /dev/uinput udev rule ==="
 
-UINPUT_RULE_FILE="/etc/udev/rules.d/99-voxkey-uinput.rules"
+UINPUT_RULE_FILE="/etc/udev/rules.d/99-spellcast-uinput.rules"
 if [ ! -f "${UINPUT_RULE_FILE}" ]; then
     echo 'KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="input"' | sudo tee "${UINPUT_RULE_FILE}"
     sudo udevadm control --reload-rules
@@ -275,11 +275,11 @@ echo ""
 echo "To enter the development environment:"
 echo "  distrobox enter ${CONTAINER_NAME}"
 echo ""
-echo "To build VoxKey:"
-echo "  cd /path/to/voxkey"
+echo "To build Spellcast:"
+echo "  cd /path/to/spellcast"
 echo "  cargo build"
 echo ""
-echo "To run VoxKey (from inside the container):"
+echo "To run Spellcast (from inside the container):"
 echo "  cargo run -- --help"
 echo ""
 echo "NOTE: If /dev/uinput access fails:"

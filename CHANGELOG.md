@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to VoxKey are documented in this file.
+All notable changes to Spellcast are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -16,13 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--backend` / `-b`: compute backend override
   - `--shell` / `-s`: shell to spawn
   - `--verbose` / `-v`: verbose logging
-- Error types (`src/error.rs`): unified `VoxKeyError` enum with `thiserror` — covers config, audio, ASR, tokenizer, and PTY errors
+- Error types (`src/error.rs`): unified `SpellcastError` enum with `thiserror` — covers config, audio, ASR, tokenizer, and PTY errors
 - Logging setup via `env_logger`
 
 #### Configuration (`src/config/`)
 - TOML-based configuration with `serde` deserialization
 - `BackendType` enum: `Auto` (default), `Cuda`, `Vulkan`, `Cpu`
-- Default config generation at `~/.config/voxkey/config.toml`
+- Default config generation at `~/.config/spellcast/config.toml`
 - Default config template (`config/default-config.toml`)
 
 #### Mode Controller (`src/modes/`)
@@ -109,4 +109,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release profile with full optimizations
 - Benchmark profile with debug symbols
 
-[0.1.0]: https://github.com/voxkey/voxkey/releases/tag/v0.1.0
+[0.1.0]: https://github.com/spellcast/spellcast/releases/tag/v0.1.0

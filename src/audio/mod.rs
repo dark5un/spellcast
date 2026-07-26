@@ -6,7 +6,7 @@
 //! Provides push-to-talk recording (start/stop) and returns
 //! 16kHz mono 16-bit PCM buffers suitable for Whisper.
 
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::error::{SpellcastError, SpellcastResult};
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -56,32 +56,32 @@ impl AudioCapture {
     ///
     /// Opens the specified audio device and selects the appropriate
     /// stream configuration (16kHz, mono, 16-bit).
-    pub fn new(config: &AudioConfig) -> VoxKeyResult<Self> {
+    pub fn new(config: &AudioConfig) -> SpellcastResult<Self> {
         let host = cpal::default_host();
 
         let device = if config.device == "default" {
             host.default_input_device()
-                .ok_or_else(|| VoxKeyError::Audio("No default input device found".to_string()))?
+                .ok_or_else(|| SpellcastError::Audio("No default input device found".to_string()))?
         } else {
             host.input_devices()
-                .map_err(|e| VoxKeyError::Audio(format!("Failed to list devices: {e}")))?
+                .map_err(|e| SpellcastError::Audio(format!("Failed to list devices: {e}")))?
                 .find(|d| {
                     d.description()
                         .map(|desc| desc.name() == config.device)
                         .unwrap_or(false)
                 })
                 .ok_or_else(|| {
-                    VoxKeyError::Audio(format!("Audio device '{}' not found", config.device))
+                    SpellcastError::Audio(format!("Audio device '{}' not found", config.device))
                 })?
         };
 
         let description = device
             .description()
-            .map_err(|e| VoxKeyError::Audio(format!("Failed to get device description: {e}")))?;
+            .map_err(|e| SpellcastError::Audio(format!("Failed to get device description: {e}")))?;
 
         let supported_config = device
             .default_input_config()
-            .map_err(|e| VoxKeyError::Audio(format!("Failed to query input configs: {e}")))?;
+            .map_err(|e| SpellcastError::Audio(format!("Failed to query input configs: {e}")))?;
 
         log::info!(
             "Audio device: {} ({:?})",
@@ -100,7 +100,7 @@ impl AudioCapture {
     ///
     /// Blocks the current thread for the duration of the recording.
     /// Returns the audio buffer.
-    pub fn record_duration(&self, duration_secs: f64) -> VoxKeyResult<AudioBuffer> {
+    pub fn record_duration(&self, duration_secs: f64) -> SpellcastResult<AudioBuffer> {
         let sample_rate = self.config.sample_rate;
         let _channels = self.config.channels as usize;
         let samples_needed = (sample_rate as f64 * duration_secs) as usize;
@@ -127,12 +127,12 @@ impl AudioCapture {
                 },
                 None,
             )
-            .map_err(|e| VoxKeyError::Audio(format!("Failed to build input stream: {e}")))?;
+            .map_err(|e| SpellcastError::Audio(format!("Failed to build input stream: {e}")))?;
 
         // Start the stream
         stream
             .play()
-            .map_err(|e| VoxKeyError::Audio(format!("Failed to start audio stream: {e}")))?;
+            .map_err(|e| SpellcastError::Audio(format!("Failed to start audio stream: {e}")))?;
 
         // Record for the specified duration
         let recording_duration = if duration_secs > 0.0 {
@@ -147,7 +147,7 @@ impl AudioCapture {
 
         // Check for errors during recording
         if let Some(err) = err_channel.lock().unwrap().take() {
-            return Err(VoxKeyError::Audio(err));
+            return Err(SpellcastError::Audio(err));
         }
 
         let guard = samples.lock().unwrap();
@@ -155,7 +155,7 @@ impl AudioCapture {
         drop(guard);
 
         if pcm_samples.is_empty() {
-            return Err(VoxKeyError::Audio("No audio captured".to_string()));
+            return Err(SpellcastError::Audio("No audio captured".to_string()));
         }
 
         // Convert from device sample rate to 16kHz if needed
@@ -186,7 +186,7 @@ impl AudioCapture {
     ///
     /// For the MVP, this records a fixed duration.
     /// A future version will use VAD (voice activity detection) or a key toggle.
-    pub fn record_push_to_talk(&self, timeout_secs: f64) -> VoxKeyResult<AudioBuffer> {
+    pub fn record_push_to_talk(&self, timeout_secs: f64) -> SpellcastResult<AudioBuffer> {
         // For MVP: record for a fixed duration (push-to-talk via key to start/stop)
         self.record_duration(timeout_secs)
     }
@@ -246,7 +246,7 @@ impl MockAudioCapture {
         }
     }
 
-    pub fn record_duration(&self, _duration_secs: f64) -> VoxKeyResult<AudioBuffer> {
+    pub fn record_duration(&self, _duration_secs: f64) -> SpellcastResult<AudioBuffer> {
         Ok(self.generate_test_buffer(_duration_secs))
     }
 }

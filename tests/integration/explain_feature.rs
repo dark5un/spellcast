@@ -2,8 +2,8 @@
 
 //! Integration tests for the explain feature.
 
-use voxkey::explainer::{Explainer, ExplainerConfig, ExplainSource};
-use voxkey::memory::MemoryStore;
+use spellcast::explainer::{Explainer, ExplainerConfig, ExplainSource};
+use spellcast::memory::MemoryStore;
 
 #[test]
 fn test_explain_with_cache() {

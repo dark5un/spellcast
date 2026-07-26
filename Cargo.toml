@@ -1,11 +1,11 @@
 [package]
-name = "voxkey"
+name = "spellcast"
 version = "0.1.0"
 edition = "2024"
 description = "Dictation-first terminal keyboard multiplexer for Linux"
 license = "Apache-2.0"
 authors = ["Panos"]
-repository = "https://github.com/voxkey/voxkey"
+repository = "https://github.com/dark5un/spellcast"
 keywords = ["dictation", "speech", "terminal", "multiplexer", "voice"]
 categories = ["command-line-utilities", "multimedia::audio"]
 
@@ -45,7 +45,24 @@ rphonetic = "3.0"
 # Web
 ureq = "3"
 
-# Utilities
+# Tree-sitter for AST-aware tokenization (optional)
+tree-sitter = { version = "0.26", optional = true }
+tree-sitter-rust = { version = "*", optional = true }
+tree-sitter-go = { version = "*", optional = true }
+tree-sitter-python = { version = "*", optional = true }
+tree-sitter-javascript = { version = "*", optional = true }
+tree-sitter-typescript = { version = "*", optional = true }
+tree-sitter-c = { version = "*", optional = true }
+tree-sitter-cpp = { version = "*", optional = true }
+tree-sitter-java = { version = "*", optional = true }
+tree-sitter-bash = { version = "*", optional = true }
+tree-sitter-markdown = { version = "*", optional = true }
+tree-sitter-json = { version = "*", optional = true }
+tree-sitter-toml = { version = "*", optional = true }
+tree-sitter-yaml = { version = "*", optional = true }
+tree-sitter-html = { version = "*", optional = true }
+tree-sitter-css = { version = "*", optional = true }
+tree-sitter-sql = { version = "*", optional = true }
 sha2 = "0.10"
 hex = "0.4"
 regex = "1"
@@ -63,6 +80,14 @@ cuda = ["whisper-rs/cuda"]
 vulkan = ["whisper-rs/vulkan"]
 cpu = ["whisper-rs"]
 llm = ["mistralrs"]
+tree-sitter = [
+    "dep:tree-sitter", "tree-sitter-rust", "tree-sitter-go", "tree-sitter-python",
+    "tree-sitter-javascript", "tree-sitter-typescript",
+    "tree-sitter-c", "tree-sitter-cpp", "tree-sitter-java",
+    "tree-sitter-bash", "tree-sitter-markdown", "tree-sitter-json",
+    "tree-sitter-toml", "tree-sitter-yaml", "tree-sitter-html",
+    "tree-sitter-css", "tree-sitter-sql",
+]
 
 # Enable ASR for tests even without CUDA
 test-asr = ["whisper-rs"]

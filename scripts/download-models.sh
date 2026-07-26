@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# download-models.sh — Download ASR and LLM models for VoxKey.
+# download-models.sh — Download ASR and LLM models for Spellcast.
 #
-# This script downloads the required models into ~/.config/voxkey/models/.
+# This script downloads the required models into ~/.config/spellcast/models/.
 #
 # Models:
 #   - whisper.cpp base.en (ASR, ~150MB)
@@ -14,10 +14,10 @@
 
 set -euo pipefail
 
-MODELS_DIR="${HOME}/.config/voxkey/models"
+MODELS_DIR="${HOME}/.config/spellcast/models"
 mkdir -p "${MODELS_DIR}"
 
-echo "=== VoxKey Model Downloader ==="
+echo "=== Spellcast Model Downloader ==="
 echo "Models directory: ${MODELS_DIR}"
 echo ""
 

@@ -1,4 +1,4 @@
-# VoxKey — Architecture Document
+# Spellcast — Architecture Document
 
 > **Version:** 0.1.0  
 > **Last Updated:** 2026-07-26  
@@ -31,18 +31,18 @@
 
 ## Overview
 
-VoxKey is a **dictation-first terminal keyboard multiplexer** for Linux. It sits between the user and their shell, intercepting keyboard input and augmenting it with speech-to-text capabilities. The core idea is simple: **when Caps Lock is ON, VoxKey processes speech; when Caps Lock is OFF, VoxKey is transparent.**
+Spellcast is a **dictation-first terminal keyboard multiplexer** for Linux. It sits between the user and their shell, intercepting keyboard input and augmenting it with speech-to-text capabilities. The core idea is simple: **when Caps Lock is ON, Spellcast processes speech; when Caps Lock is OFF, Spellcast is transparent.**
 
 ### Core Capabilities
 
 | Feature | Description |
 |---------|-------------|
 | **Dictation** | Speak commands, code, or prose instead of typing |
-| **Raw passthrough** | VoxKey is completely transparent (Caps Lock OFF) |
+| **Raw passthrough** | Spellcast is completely transparent (Caps Lock OFF) |
 | **Token navigation** | Navigate between *tokens* (not words) with H/L keys |
 | **Phonetic predictions** | Up to 3 alternatives ranked by phoneme distance |
 | **Explain feature** | Describe a concept verbally, get the right token |
-| **Kill switch** | Ctrl+Shift+Escape immediately disables VoxKey |
+| **Kill switch** | Ctrl+Shift+Escape immediately disables Spellcast |
 | **Persistent memory** | Learns from corrections over time via SQLite |
 | **Local only** | All processing runs on the user's machine — no cloud |
 
@@ -58,7 +58,7 @@ VoxKey is a **dictation-first terminal keyboard multiplexer** for Linux. It sits
                            ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │              VoxKey (Rust Binary)                          │  │
+│  │              Spellcast (Rust Binary)                          │  │
 │  │                                                            │  │
 │  │  ┌──────────┐  ┌────────┐  ┌──────────┐  ┌────────────┐  │  │
 │  │  │  Audio   │──│  ASR   │──│ Tokenizer│  │ Predictor  │  │  │
@@ -98,13 +98,13 @@ VoxKey is a **dictation-first terminal keyboard multiplexer** for Linux. It sits
 
 ### Key Architectural Principle
 
-VoxKey is **not** a terminal emulator. It delegates all terminal rendering to the host terminal emulator (alacritty, kitty, gnome-terminal, etc.). VoxKey itself runs as a **command-line program** that spawns a shell in a pseudo-terminal (PTY) and wraps it with a thin status bar overlay.
+Spellcast is **not** a terminal emulator. It delegates all terminal rendering to the host terminal emulator (alacritty, kitty, gnome-terminal, etc.). Spellcast itself runs as a **command-line program** that spawns a shell in a pseudo-terminal (PTY) and wraps it with a thin status bar overlay.
 
 ---
 
 ## Mode State Machine
 
-VoxKey operates in three modes, managed by the `ModeController` in `src/modes/mod.rs`:
+Spellcast operates in three modes, managed by the `ModeController` in `src/modes/mod.rs`:
 
 ```
                      ┌─────────────────┐
@@ -131,9 +131,9 @@ VoxKey operates in three modes, managed by the `ModeController` in `src/modes/mo
 
 | Transition | Trigger | Effect |
 |------------|---------|--------|
-| Raw → Dictation | Caps Lock pressed alone | VoxKey activates: speech to text, token nav |
-| Dictation → Raw | Caps Lock pressed alone | VoxKey becomes transparent |
-| Any → Killed | Ctrl+Shift+Escape | VoxKey fully disabled, all keys passthrough |
+| Raw → Dictation | Caps Lock pressed alone | Spellcast activates: speech to text, token nav |
+| Dictation → Raw | Caps Lock pressed alone | Spellcast becomes transparent |
+| Any → Killed | Ctrl+Shift+Escape | Spellcast fully disabled, all keys passthrough |
 | Killed → Raw | Ctrl+Shift+Escape (again) | Returns to raw passthrough |
 | Shift+Caps Lock | Any mode | Toggles actual caps lock state (independent of mode) |
 
@@ -154,7 +154,7 @@ VoxKey operates in three modes, managed by the `ModeController` in `src/modes/mo
 ┌──────────────────────────────────────┐
 │  Terminal Emulator (kitty/alacritty) │
 │  ┌────────────────────────────────┐  │
-│  │ VoxKey Process                 │  │
+│  │ Spellcast Process                 │  │
 │  │  ┌─────────────────────────┐   │  │
 │  │  │  stdin/stdout           │   │  │
 │  │  │  (crossterm raw mode)   │   │  │
@@ -192,7 +192,7 @@ loop {
 
 **Important implementation details:**
 
-- The status bar is rendered via ANSI escape sequences, not ratatui's frame system. VoxKey saves the cursor position, jumps to the bottom row, writes the status bar in reverse video, and restores the cursor. This avoids the complexity of a full TUI application while keeping the shell's scrollback intact.
+- The status bar is rendered via ANSI escape sequences, not ratatui's frame system. Spellcast saves the cursor position, jumps to the bottom row, writes the status bar in reverse video, and restores the cursor. This avoids the complexity of a full TUI application while keeping the shell's scrollback intact.
 - The `TerminalGuard` struct uses Rust's `Drop` trait to guarantee terminal restoration on panic, ensuring the user is never left with a broken terminal.
 - Signal handlers (`SIGTERM`, `SIGINT`) via the `ctrlc` crate provide an additional safety net.
 - Keystrokes are written to the PTY as raw byte sequences (e.g., `\x1b[D` for left arrow), not character-by-character.
@@ -252,8 +252,8 @@ Microphone → cpal input stream → i16 PCM samples → resample to 16kHz
 
 ```rust
 pub trait AsrEngine: Send {
-    fn load_model(&mut self, model_path: &str) -> VoxKeyResult<()>;
-    fn transcribe(&self, audio: &AudioBuffer) -> VoxKeyResult<AsrResult>;
+    fn load_model(&mut self, model_path: &str) -> SpellcastResult<()>;
+    fn transcribe(&self, audio: &AudioBuffer) -> SpellcastResult<AsrResult>;
     fn is_ready(&self) -> bool;
 }
 ```
@@ -515,7 +515,7 @@ The backend detection is **informational** at this stage — it identifies which
 ### 9. Configuration
 
 **Location:** `src/config/mod.rs`  
-**Format:** TOML, loaded from `~/.config/voxkey/config.toml` (XDG-compliant)
+**Format:** TOML, loaded from `~/.config/spellcast/config.toml` (XDG-compliant)
 
 #### Configuration Sections
 
@@ -530,7 +530,7 @@ device = "default"               # Microphone device name
 
 [asr]
 engine = "whisper-cpp"           # ASR engine backend
-model_path = "~/.config/voxkey/models/ggml-base.en.bin"
+model_path = "~/.config/spellcast/models/ggml-base.en.bin"
 language = "en"
 
 [llm]
@@ -553,7 +553,7 @@ mode = "heuristic"               # heuristic | tree-sitter (future)
 default_context = "prose"        # prose | code
 
 [database]
-path = "~/.config/voxkey/voxkey.db"
+path = "~/.config/spellcast/spellcast.db"
 
 [languages]
 primary = "en"
@@ -564,12 +564,12 @@ secondary = "none"
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `-c, --config` | Config file path | `~/.config/voxkey/config.toml` |
+| `-c, --config` | Config file path | `~/.config/spellcast/config.toml` |
 | `-b, --backend` | Backend override | From config |
 | `-s, --shell` | Shell to spawn | `$SHELL` or `/bin/bash` |
 | `-v, --verbose` | Verbose logging | false |
 
-**Important:** If the config file doesn't exist, VoxKey falls back to defaults without error. If the file exists but is malformed, VoxKey returns a parse error and exits. This "missing = OK, malformed = failure" behavior is deliberate: first-time users get a working default without any setup.
+**Important:** If the config file doesn't exist, Spellcast falls back to defaults without error. If the file exists but is malformed, Spellcast returns a parse error and exits. This "missing = OK, malformed = failure" behavior is deliberate: first-time users get a working default without any setup.
 
 ---
 
@@ -581,7 +581,7 @@ secondary = "none"
 #### Error Taxonomy
 
 ```rust
-pub enum VoxKeyError {
+pub enum SpellcastError {
     // Configuration
     Config(String),           // File not found or unreadable
     ConfigParse(toml::de::Error),  // Malformed TOML
@@ -682,7 +682,7 @@ pub enum VoxKeyError {
 3. KILL_SWITCH_ENGAGED = true (AtomicBool)
 4. All subsequent key events pass through to PTY unchanged
 5. Status bar: [KILLED]
-6. Press Ctrl+Shift+Escape again → Mode::Raw → VoxKey re-enabled
+6. Press Ctrl+Shift+Escape again → Mode::Raw → Spellcast re-enabled
 ```
 
 ---
@@ -691,18 +691,18 @@ pub enum VoxKeyError {
 
 ### Container Strategy
 
-VoxKey uses a **distrobox-first** deployment model:
+Spellcast uses a **distrobox-first** deployment model:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Host (Bazzite / Fedora Silverblue)                          │
 │  ┌───────────────────────────────────────────────────────┐  │
-│  │ distrobox container "voxkey-dev"                      │  │
+│  │ distrobox container "spellcast-dev"                      │  │
 │  │  ┌─────────────────────────────────────────────────┐  │  │
-│  │  │  VoxKey binary                                   │  │  │
-│  │  │  - Whisper model files (~/.config/voxkey/models/)│  │  │
-│  │  │  - SQLite DB (~/.config/voxkey/voxkey.db)        │  │  │
-│  │  │  - Config (~/.config/voxkey/config.toml)         │  │  │
+│  │  │  Spellcast binary                                   │  │  │
+│  │  │  - Whisper model files (~/.config/spellcast/models/)│  │  │
+│  │  │  - SQLite DB (~/.config/spellcast/spellcast.db)        │  │  │
+│  │  │  - Config (~/.config/spellcast/config.toml)         │  │  │
 │  │  └─────────────────────────────────────────────────┘  │  │
 │  │                                                       │  │
 │  │  Bind mounts (automatic via distrobox):               │  │
@@ -731,9 +731,9 @@ The `Containerfile` also supports standalone podman usage, but audio and GPU pas
 ### Filesystem Layout
 
 ```
-~/.config/voxkey/
+~/.config/spellcast/
 ├── config.toml          # User configuration (auto-generated on first run)
-├── voxkey.db            # SQLite memory store
+├── spellcast.db            # SQLite memory store
 └── models/
     ├── ggml-base.en.bin   # Whisper base model (English)
     └── ggml-tiny.en.bin   # Whisper tiny model (lighter, faster)
@@ -745,11 +745,11 @@ The `Containerfile` also supports standalone podman usage, but audio and GPU pas
 
 ### 1. PTY Wrapper vs Terminal Emulator
 
-**Decision:** VoxKey uses `portable-pty` to spawn a shell inside a PTY, rather than building a full terminal emulator.
+**Decision:** Spellcast uses `portable-pty` to spawn a shell inside a PTY, rather than building a full terminal emulator.
 
-**Rationale:** Building a terminal emulator would add enormous complexity (rendering, scrollback, fonts, Sixel, etc.) and duplicate the work of mature terminal emulators. By wrapping a PTY, VoxKey delegates all rendering to the host terminal while maintaining full control over keystroke interception and injection.
+**Rationale:** Building a terminal emulator would add enormous complexity (rendering, scrollback, fonts, Sixel, etc.) and duplicate the work of mature terminal emulators. By wrapping a PTY, Spellcast delegates all rendering to the host terminal while maintaining full control over keystroke interception and injection.
 
-**Trade-off:** VoxKey cannot render inline content (e.g., colored tokens directly in the terminal body). The status bar is the only UI element, rendered via ANSI escape sequences.
+**Trade-off:** Spellcast cannot render inline content (e.g., colored tokens directly in the terminal body). The status bar is the only UI element, rendered via ANSI escape sequences.
 
 ### 2. Heuristic Tokenizer vs Tree-Sitter
 
@@ -773,7 +773,7 @@ The `Containerfile` also supports standalone podman usage, but audio and GPU pas
 
 **Decision:** LLM inference is in-process via `mistralrs` behind a feature flag.
 
-**Rationale:** VoxKey's design principle is "local only." Making an external API call would break this principle. `mistralrs` provides Rust-native LLM inference that loads directly into the VoxKey process. However, LLM inference is `optional` (behind the `llm` feature flag) to avoid bloating the binary for users who only need ASR.
+**Rationale:** Spellcast's design principle is "local only." Making an external API call would break this principle. `mistralrs` provides Rust-native LLM inference that loads directly into the Spellcast process. However, LLM inference is `optional` (behind the `llm` feature flag) to avoid bloating the binary for users who only need ASR.
 
 ### 6. SQLite vs Custom File Format
 
@@ -793,21 +793,21 @@ The `Containerfile` also supports standalone podman usage, but audio and GPU pas
 
 ### Threat Model
 
-VoxKey operates as a **keystroke interceptor and microphone listener**. Its security posture must account for:
+Spellcast operates as a **keystroke interceptor and microphone listener**. Its security posture must account for:
 
 | Threat | Mitigation |
 |--------|------------|
-| Keystroke injection by malicious processes | VoxKey requires `/dev/uinput` access (root or `input` group). The udev rule `99-voxkey-uinput.rules` restricts this to the `input` group. |
-| Microphone accessed without consent | VoxKey only captures audio when in Dictation mode AND when the user explicitly triggers push-to-talk. Audio capture is never automatic. |
-| Model file tampering | Model files are read-only after download; VoxKey does not execute code from model files (whisper.cpp is sandboxed in a C FFI). |
+| Keystroke injection by malicious processes | Spellcast requires `/dev/uinput` access (root or `input` group). The udev rule `99-spellcast-uinput.rules` restricts this to the `input` group. |
+| Microphone accessed without consent | Spellcast only captures audio when in Dictation mode AND when the user explicitly triggers push-to-talk. Audio capture is never automatic. |
+| Model file tampering | Model files are read-only after download; Spellcast does not execute code from model files (whisper.cpp is sandboxed in a C FFI). |
 | SQLite injection | All user input is parameterized via `rusqlite::params!()`. No raw string concatenation. |
 | Config file injection | TOML deserialization is schema-bound via `serde`. Unknown fields are ignored. |
 | Panic in signal handler | The signal handler uses `AtomicBool` (lock-free) and is minimal. Terminal restoration is handled by `Drop`. |
 
 ### Attack Surface
 
-1. **Audio input** — VoxKey opens the microphone device. A malicious user on the same machine could pipe audio to the device. Mitigation: standard Linux audio permissions (PipeWire socket).
-2. **PTY I/O** — VoxKey reads and writes to a PTY. The shell inside the PTY has the same security properties as any shell session (user-level, no privilege escalation).
+1. **Audio input** — Spellcast opens the microphone device. A malicious user on the same machine could pipe audio to the device. Mitigation: standard Linux audio permissions (PipeWire socket).
+2. **PTY I/O** — Spellcast reads and writes to a PTY. The shell inside the PTY has the same security properties as any shell session (user-level, no privilege escalation).
 3. **Model files** — Large binary files (~75MB for base.en, ~1.5GB for large-v3) loaded via FFI. Whisper.cpp has undergone extensive fuzzing.
 4. **LLM inference** — Optional feature. The local model runs entirely in-process. No data leaves the machine.
 
@@ -818,7 +818,7 @@ VoxKey operates as a **keystroke interceptor and microphone listener**. Its secu
 sudo usermod -a -G input $USER
 
 # Install udev rule (run once)
-sudo cp contrib/99-voxkey-uinput.rules /etc/udev/rules.d/
+sudo cp contrib/99-spellcast-uinput.rules /etc/udev/rules.d/
 sudo udevadm control --reload-rules && sudo udevadm trigger
 
 # Re-login or newgrp to apply group changes
@@ -860,7 +860,7 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 ## Chaossynergy Integration
 
-VoxKey's eventual home is as the core input component of **Chaossynergy**, an agent-native immutable Linux OS. The PTY wrapper in this repo is a spike of the dictation pipeline. A future **uinput injector** spike will evolve into the production integration, either as a **plugin for herdr** (Chaossynergy's existing agent multiplexer) or as a **standalone replacement** for herdr's input path:
+Spellcast's eventual home is as the core input component of **Chaossynergy**, an agent-native immutable Linux OS. The PTY wrapper in this repo is a spike of the dictation pipeline. A future **uinput injector** spike will evolve into the production integration, either as a **plugin for herdr** (Chaossynergy's existing agent multiplexer) or as a **standalone replacement** for herdr's input path:
 
 | Path | Status | What it does |
 |------|--------|-------------|
@@ -880,7 +880,7 @@ Microphone → cpal → AudioBuffer → whisper-rs → text → tokenizer
                                               /dev/uinput → display server
 ```
 
-Whether VoxKey becomes a herdr plugin or replaces herdr's input path, the token stream feeds into the agent orchestration layer before reaching the application. Research during the uinput spike will settle the architecture.
+Whether Spellcast becomes a herdr plugin or replaces herdr's input path, the token stream feeds into the agent orchestration layer before reaching the application. Research during the uinput spike will settle the architecture.
 
 ---
 
@@ -902,5 +902,5 @@ Whether VoxKey becomes a herdr plugin or replaces herdr's input path, the token 
 ### Scaling Considerations
 
 - **Vocabulary size:** The phonetic index is in-memory. At 100k words (covering English + common programming terms), memory usage would be ~20MB. Beyond this, consider mmap-backed or SQLite-backed phonetic indexes.
-- **Concurrent sessions:** VoxKey is a single-user, single-session tool. Multiple concurrent sessions (e.g., tmux panes) would require separate VoxKey instances.
+- **Concurrent sessions:** Spellcast is a single-user, single-session tool. Multiple concurrent sessions (e.g., tmux panes) would require separate Spellcast instances.
 - **Model size:** Whisper large-v3 (~3GB VRAM) runs on any modern GPU with 4GB+ VRAM. The default base.en model (~1GB VRAM) runs on virtually any GPU, including integrated graphics via Vulkan.

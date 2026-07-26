@@ -2,7 +2,7 @@
 
 //! Explain feature — concept-to-token via DB → LLM → web search.
 //!
-//! When the user presses `E` and speaks an explanation, VoxKey:
+//! When the user presses `E` and speaks an explanation, Spellcast:
 //! 1. Checks the local SQLite DB for a cached explanation → token mapping
 //! 2. Falls back to a local LLM query
 //! 3. Falls back to a web search
@@ -10,7 +10,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::error::{VoxKeyError, VoxKeyResult};
+use crate::error::{SpellcastError, SpellcastResult};
 use crate::memory::MemoryStore;
 
 /// Configuration for the explainer.
@@ -102,7 +102,7 @@ impl Explainer {
     /// 1. Check local cache
     /// 2. Fall back to LLM (if available)
     /// 3. Fall back to web search
-    pub fn explain(&self, explanation: &str, context: &str) -> VoxKeyResult<ExplainResult> {
+    pub fn explain(&self, explanation: &str, context: &str) -> SpellcastResult<ExplainResult> {
         let explanation = explanation.trim().to_lowercase();
 
         // Step 1: Check local cache
@@ -152,25 +152,25 @@ impl Explainer {
         }
 
         // All fallbacks exhausted
-        Err(VoxKeyError::ExplainerDb(
+        Err(SpellcastError::ExplainerDb(
             "All explain sources exhausted".to_string(),
         ))
     }
 
     /// Query a local LLM via web-like API (stub for MVP).
     #[cfg(feature = "llm")]
-    fn query_llm(&self, explanation: &str, context: &str) -> VoxKeyResult<ExplainResult> {
+    fn query_llm(&self, explanation: &str, context: &str) -> SpellcastResult<ExplainResult> {
         use mistralrs::{IsqBits, ModelBuilder, TextMessageRole, TextMessages};
 
         let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| VoxKeyError::Llm(format!("Failed to create runtime: {e}")))?;
+            .map_err(|e| SpellcastError::Llm(format!("Failed to create runtime: {e}")))?;
 
         let result = rt.block_on(async {
             let model = ModelBuilder::new("Qwen/Qwen3-4B")
                 .with_auto_isq(IsqBits::Four)
                 .build()
                 .await
-                .map_err(|e| VoxKeyError::Llm(format!("Failed to load model: {e}")))?;
+                .map_err(|e| SpellcastError::Llm(format!("Failed to load model: {e}")))?;
 
             let prompt = format!(
                 "Given the explanation \"{}\" in the context \"{}\", \
@@ -184,7 +184,7 @@ impl Explainer {
             let response = model
                 .send_chat_request(messages)
                 .await
-                .map_err(|e| VoxKeyError::Llm(format!("LLM request failed: {e}")))?;
+                .map_err(|e| SpellcastError::Llm(format!("LLM request failed: {e}")))?;
 
             let text = response
                 .choices
@@ -193,7 +193,7 @@ impl Explainer {
                 .map(|s| s.trim().to_string())
                 .unwrap_or_default();
 
-            Ok::<ExplainResult, VoxKeyError>(ExplainResult {
+            Ok::<ExplainResult, SpellcastError>(ExplainResult {
                 token: text,
                 source: ExplainSource::Llm,
                 confidence: 0.7,
@@ -207,7 +207,7 @@ impl Explainer {
     ///
     /// In the MVP, this searches a hardcoded dictionary or returns an error.
     /// A production version would use DuckDuckGo or a similar API.
-    fn web_search(&self, explanation: &str) -> VoxKeyResult<ExplainResult> {
+    fn web_search(&self, explanation: &str) -> SpellcastResult<ExplainResult> {
         // Try a simple dictionary lookup first (MVP stub)
         let dictionary = create_dictionary();
 
@@ -231,7 +231,7 @@ impl Explainer {
             });
         }
 
-        Err(VoxKeyError::WebSearch("No results found".to_string()))
+        Err(SpellcastError::WebSearch("No results found".to_string()))
     }
 }
 

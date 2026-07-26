@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# distrobox-build.sh — Build the VoxKey dev image and create a distrobox container.
+# distrobox-build.sh — Build the Spellcast dev image and create a distrobox container.
 #
 # This script wraps the Containerfile into the distrobox workflow:
-#   1. Builds a local OCI image (voxkey-dev) from Containerfile
+#   1. Builds a local OCI image (spellcast-dev) from Containerfile
 #   2. Creates a distrobox container using that image
 #   3. Verifies device, audio, and GPU access
 #
 # Usage:
-#   ./scripts/distrobox-build.sh [--name voxkey-dev] [--rebuild]
+#   ./scripts/distrobox-build.sh [--name spellcast-dev] [--rebuild]
 #
 # Flags:
-#   --name NAME     Container name (default: voxkey-dev)
+#   --name NAME     Container name (default: spellcast-dev)
 #   --rebuild       Force rebuild of the container image
 #   --dry-run       Print commands without executing
 
 set -euo pipefail
 
-CONTAINER_NAME="voxkey-dev"
+CONTAINER_NAME="spellcast-dev"
 REBUILD=false
 DRY_RUN=false
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
     --name) CONTAINER_NAME="$2"; shift 2 ;;
     --rebuild) REBUILD=true; shift ;;
     --dry-run) DRY_RUN=true; shift ;;
-    --help) echo "Usage: $0 [--name voxkey-dev] [--rebuild] [--dry-run]"; exit 0 ;;
+    --help) echo "Usage: $0 [--name spellcast-dev] [--rebuild] [--dry-run]"; exit 0 ;;
     *) echo "Unknown: $1"; exit 1 ;;
   esac
 done
@@ -37,17 +37,17 @@ run() {
   if [ "$DRY_RUN" = true ]; then echo "  # $*"; else "$@"; fi
 }
 
-echo "=== VoxKey Distrobox Builder ==="
+echo "=== Spellcast Distrobox Builder ==="
 echo "  Container: $CONTAINER_NAME"
-echo "  Image:     localhost/voxkey-dev:latest"
+echo "  Image:     localhost/spellcast-dev:latest"
 echo "  Source:    $PROJECT_DIR/Containerfile"
 echo ""
 
 # Step 1 — Build the image
 echo "--- Building container image ---"
-IMAGE_EXISTS=$(podman images --quiet localhost/voxkey-dev 2>/dev/null || true)
+IMAGE_EXISTS=$(podman images --quiet localhost/spellcast-dev 2>/dev/null || true)
 if [ -z "$IMAGE_EXISTS" ] || [ "$REBUILD" = true ]; then
-  run podman build -t voxkey-dev -f "$PROJECT_DIR/Containerfile" "$PROJECT_DIR"
+  run podman build -t spellcast-dev -f "$PROJECT_DIR/Containerfile" "$PROJECT_DIR"
   echo "  Image built."
 else
   echo "  Image exists (use --rebuild to force)."
@@ -75,7 +75,7 @@ if [ "$EXISTS" -eq 0 ]; then
 
   run distrobox create \
     --name "$CONTAINER_NAME" \
-    --image localhost/voxkey-dev:latest \
+    --image localhost/spellcast-dev:latest \
     $NVIDIA_FLAGS \
     $DEVICE_FLAGS \
     --volume /run/user/"$(id -u)"/pipewire-0:/run/user/"$(id -u)"/pipewire-0

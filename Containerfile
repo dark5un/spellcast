@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Containerfile — VoxKey development environment.
+# Containerfile — Spellcast development environment.
 #
-# Builds a fedora:latest-based image with all dependencies for VoxKey.
+# Builds a fedora:latest-based image with all dependencies for Spellcast.
 # Designed to be used with podman inside a distrobox container, or standalone.
 #
 # Build:
-#   podman build -t voxkey-dev -f Containerfile .
+#   podman build -t spellcast-dev -f Containerfile .
 #
 # Run standalone (no GPU, no audio, no uinput — limited):
-#   podman run --rm -it voxkey-dev
+#   podman run --rm -it spellcast-dev
 #
 # Run with host integration (distrobox-style):
 #   podman run --rm -it \
@@ -20,22 +20,22 @@
 #     --volume /run/user/$(id -u)/pipewire-0:/run/user/$(id -u)/pipewire-0:ro \
 #     --volume "$HOME:$HOME" \
 #     --workdir "$(pwd)" \
-#     voxkey-dev
+#     spellcast-dev
 #
 # NOTE: Audio access inside containers is limited. This Containerfile installs
 # ALSA + PipeWire libs but the container needs the host's PipeWire socket at
 # runtime (bind-mounted above). Without it, audio recording via cpal/ALSA will
 # not work. For full audio + GPU + uinput passthrough, use distrobox instead:
-#   distrobox create --name voxkey-dev --image voxkey-dev --nvidia
+#   distrobox create --name spellcast-dev --image spellcast-dev --nvidia
 #
 # This image is optimised for CUDA (NVIDIA). CPU-only builds omit the CUDA
 # layers — simply remove or comment the CUDA-related RUN lines.
 
 FROM fedora:latest
 
-LABEL maintainer="VoxKey Team"
-LABEL description="VoxKey development environment"
-LABEL io.distrobox.image="voxkey-dev"
+LABEL maintainer="Spellcast Team"
+LABEL description="Spellcast development environment"
+LABEL io.distrobox.image="spellcast-dev"
 
 # Prevent interactive prompts during package installs
 ENV DEBIAN_FRONTEND=noninteractive

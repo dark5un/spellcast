@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use rphonetic::{DoubleMetaphone, Encoder};
 
-use crate::error::VoxKeyResult;
+use crate::error::SpellcastResult;
 
 /// A phonetic prediction candidate.
 #[derive(Debug, Clone)]
@@ -70,7 +70,7 @@ impl Predictor {
     ///
     /// Returns up to `count` predictions, excluding the input word itself,
     /// ranked by Levenshtein distance on the phonetic code.
-    pub fn predict(&self, word: &str, count: usize) -> VoxKeyResult<Vec<Prediction>> {
+    pub fn predict(&self, word: &str, count: usize) -> SpellcastResult<Vec<Prediction>> {
         if self.index.is_empty() {
             return Ok(Vec::new());
         }
