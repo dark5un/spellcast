@@ -11,7 +11,6 @@ use std::collections::HashMap;
 
 use tree_sitter::{Node, Parser, Tree};
 
-use crate::error::SpellcastError;
 use crate::error::SpellcastResult;
 use crate::tokenizer::{Token, TokenContext, TokenStream, TokenType, Tokenizer};
 

@@ -7,7 +7,7 @@
 //! - `NoopAsr` — mock/stub for testing
 
 use crate::audio::AudioBuffer;
-use crate::error::{SpellcastError, SpellcastResult};
+use crate::error::SpellcastResult;
 
 /// Result of ASR inference.
 #[derive(Debug, Clone)]

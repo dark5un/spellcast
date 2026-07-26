@@ -7,6 +7,8 @@
 //! 16kHz mono 16-bit PCM buffers suitable for Whisper.
 
 use crate::error::{SpellcastError, SpellcastResult};
+pub mod vad;
+
 use std::sync::Arc;
 use std::sync::Mutex;
 

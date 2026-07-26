@@ -42,6 +42,9 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # Phonetic
 rphonetic = "3.0"
 
+# VAD
+silero-vad-rust = { version = "6.2", optional = true }
+
 # Web
 ureq = "3"
 
@@ -80,6 +83,7 @@ cuda = ["whisper-rs/cuda"]
 vulkan = ["whisper-rs/vulkan"]
 cpu = ["whisper-rs"]
 llm = ["mistralrs"]
+vad = ["silero-vad-rust"]
 tree-sitter = [
     "dep:tree-sitter", "tree-sitter-rust", "tree-sitter-go", "tree-sitter-python",
     "tree-sitter-javascript", "tree-sitter-typescript",
