@@ -20,7 +20,8 @@ use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
 use crate::asr::AsrEngine;
-use crate::audio::{AudioCapture, AudioConfig as SpcAudioConfig};
+use crate::audio::vad::VadConfig;
+use crate::audio::{AudioBuffer, AudioCapture, AudioConfig as SpcAudioConfig};
 use crate::config::SpellcastConfig;
 use crate::error::{SpellcastError, SpellcastResult};
 use crate::memory::MemoryStore;
@@ -28,8 +29,205 @@ use crate::modes::{Mode, ModeController};
 use crate::predictor::Predictor;
 use crate::tokenizer::{HeuristicTokenizer, TokenContext, TokenStream, Tokenizer};
 
+use silero::{SpeechOptions, SpeechSegmenter, SpeechSegmenterExt, StreamState};
+
 /// Global flag for the kill switch (accessible from signal handlers).
 static KILL_SWITCH_ENGAGED: AtomicBool = AtomicBool::new(false);
+
+/// Background continuous-listening thread handle for dictation mode.
+///
+/// When dictation mode is entered, a background thread is spawned that
+/// continuously captures audio, runs Silero VAD to detect speech segments,
+/// transcribes each completed segment with ASR, and sends the result text
+/// via an mpsc channel to the main loop. Dropping this struct stops the
+/// thread (the `stop` flag is set and the audio stream is dropped).
+struct DictationListener {
+    /// Set to true to signal the background thread to stop.
+    stop: Arc<AtomicBool>,
+    /// Receives ASR results (Ok(text)) or errors (Err(msg)).
+    rx: mpsc::Receiver<Result<String, String>>,
+    /// Handle to the background thread (joined on drop).
+    handle: Option<std::thread::JoinHandle<()>>,
+}
+
+impl DictationListener {
+    /// Start a continuous VAD-based listening thread.
+    ///
+    /// The thread:
+    /// 1. Opens the audio device (cpal Device is !Send, so this must happen inside the thread)
+    /// 2. Starts a continuous capture stream that emits 512-sample f32 chunks
+    /// 3. Feeds each chunk to a Silero `SpeechSegmenter` (via `SpeechSegmenterExt`)
+    /// 4. When the segmenter emits a complete `SpeechSegment`, extracts the PCM,
+    ///    runs ASR, and sends the result text via the channel
+    fn start(
+        audio_config: SpcAudioConfig,
+        asr_engine: Arc<Box<dyn AsrEngine>>,
+    ) -> Result<Self, String> {
+        let stop = Arc::new(AtomicBool::new(false));
+        let stop_clone = Arc::clone(&stop);
+        let (tx, rx) = mpsc::channel::<Result<String, String>>();
+
+        let handle = std::thread::spawn(move || {
+            // 1. Open audio device inside the thread
+            let audio_capture = match AudioCapture::new(&audio_config) {
+                Ok(c) => c,
+                Err(e) => {
+                    let _ = tx.send(Err(format!("Audio init error: {e}")));
+                    return;
+                }
+            };
+
+            // 2. Channel for audio chunks from capture callback to this thread
+            let (chunk_tx, chunk_rx) = mpsc::channel::<Vec<f32>>();
+
+            // 3. Start continuous capture
+            let stream = match audio_capture.start_continuous(chunk_tx) {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ = tx.send(Err(format!("Audio stream error: {e}")));
+                    return;
+                }
+            };
+
+            log::info!("DICTATION: continuous VAD listener started");
+
+            // 4. Initialize VAD session + segmenter
+            let vad_config = VadConfig::default();
+            let session = match silero::Session::bundled() {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ = tx.send(Err(format!("VAD model error: {e}")));
+                    let _ = stream; // keep stream alive until here
+                    return;
+                }
+            };
+            let mut session = session;
+
+            let options = SpeechOptions::default()
+                .with_start_threshold(vad_config.threshold)
+                .with_min_silence_duration(std::time::Duration::from_millis(
+                    vad_config.min_silence_ms as u64,
+                ))
+                .with_min_speech_duration(std::time::Duration::from_millis(
+                    vad_config.min_speech_ms as u64,
+                ))
+                .with_speech_pad(std::time::Duration::from_millis(
+                    vad_config.pre_padding_ms as u64,
+                ));
+
+            let mut stream_state = StreamState::new(silero::SampleRate::Rate16k);
+            let mut segmenter = SpeechSegmenter::new(options);
+
+            // Buffer to accumulate PCM for the current speech segment
+            let mut pcm_buffer: Vec<f32> = Vec::new();
+
+            // 5. Main loop: receive chunks, feed VAD, emit segments
+            while !stop_clone.load(Ordering::SeqCst) {
+                match chunk_rx.recv_timeout(std::time::Duration::from_millis(100)) {
+                    Ok(chunk) => {
+                        // Accumulate PCM for segment extraction
+                        pcm_buffer.extend_from_slice(&chunk);
+
+                        // Feed chunk to VAD segmenter
+                        match segmenter.push_samples(&mut session, &mut stream_state, &chunk) {
+                            Ok(Some(segment)) => {
+                                // Complete speech segment detected — extract PCM and run ASR
+                                Self::transcribe_segment(&segment, &pcm_buffer, &asr_engine, &tx);
+                                // Clear consumed PCM up to segment end
+                                let end = segment.end_sample() as usize;
+                                if end < pcm_buffer.len() {
+                                    pcm_buffer = pcm_buffer[end..].to_vec();
+                                } else {
+                                    pcm_buffer.clear();
+                                }
+                            }
+                            Ok(None) => {
+                                // No complete segment yet, keep accumulating
+                            }
+                            Err(e) => {
+                                log::warn!("VAD error: {e}");
+                            }
+                        }
+                    }
+                    Err(mpsc::RecvTimeoutError::Timeout) => {
+                        // Check stop flag and continue
+                    }
+                    Err(mpsc::RecvTimeoutError::Disconnected) => {
+                        // Audio stream stopped
+                        break;
+                    }
+                }
+            }
+
+            log::info!("DICTATION: continuous VAD listener stopping");
+            drop(stream);
+        });
+
+        Ok(Self {
+            stop,
+            rx,
+            handle: Some(handle),
+        })
+    }
+
+    /// Extract the PCM for a speech segment, run ASR, and send the result.
+    fn transcribe_segment(
+        segment: &silero::SpeechSegment,
+        pcm_buffer: &[f32],
+        asr_engine: &Arc<Box<dyn AsrEngine>>,
+        tx: &mpsc::Sender<Result<String, String>>,
+    ) {
+        let start = segment.start_sample() as usize;
+        let end = segment.end_sample() as usize;
+        let start = start.min(pcm_buffer.len());
+        let end = end.min(pcm_buffer.len());
+        if start >= end {
+            return;
+        }
+
+        let segment_pcm = &pcm_buffer[start..end];
+        let i16_samples: Vec<i16> = segment_pcm.iter().map(|&s| (s * 32768.0) as i16).collect();
+
+        let buffer = AudioBuffer {
+            samples: i16_samples,
+            sample_rate: 16000,
+        };
+
+        log::info!(
+            "DICTATION: speech segment [{:.2}s - {:.2}s] ({} samples), transcribing...",
+            segment.start_seconds(),
+            segment.end_seconds(),
+            segment_pcm.len()
+        );
+
+        match asr_engine.transcribe(&buffer) {
+            Ok(result) => {
+                let _ = tx.send(Ok(result.text));
+            }
+            Err(e) => {
+                let _ = tx.send(Err(format!("ASR error: {e}")));
+            }
+        }
+    }
+
+    /// Try to receive an ASR result (non-blocking).
+    fn try_recv(&self) -> Result<Option<Result<String, String>>, ()> {
+        match self.rx.try_recv() {
+            Ok(result) => Ok(Some(result)),
+            Err(mpsc::TryRecvError::Empty) => Ok(None),
+            Err(mpsc::TryRecvError::Disconnected) => Err(()),
+        }
+    }
+}
+
+impl Drop for DictationListener {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
 
 /// Installs signal handlers that restore the terminal on exit.
 fn install_signal_handlers() {
@@ -87,7 +285,7 @@ pub fn run_terminal_loop(
 }
 
 fn run_inner(
-    config: &SpellcastConfig,
+    _config: &SpellcastConfig,
     mode_ctrl: &mut ModeController,
     _memory: &MemoryStore,
     shell: Option<&str>,
@@ -151,9 +349,8 @@ fn run_inner(
     let mut token_index: Option<usize> = None;
     let mut predictions: Vec<String> = Vec::new();
 
-    // ASR result channel — receives transcribed text from background thread
-    let (asr_tx, asr_rx) = mpsc::channel::<Result<String, String>>();
-    let mut asr_busy = false;
+    // Continuous VAD listener — None when not in dictation mode
+    let mut listener: Option<DictationListener> = None;
 
     // Main event loop
     loop {
@@ -174,9 +371,10 @@ fn run_inner(
             let _ = std::io::stdout().flush();
         }
 
-        // Check for ASR result (non-blocking)
-        if asr_busy && let Ok(result) = asr_rx.try_recv() {
-            asr_busy = false;
+        // Check for ASR result from the continuous listener (non-blocking)
+        if let Some(ref dict_listener) = listener
+            && let Ok(Some(result)) = dict_listener.try_recv()
+        {
             match result {
                 Ok(text) => {
                     log::info!("ASR result: '{text}'");
@@ -220,12 +418,13 @@ fn run_inner(
         }
 
         // Render status bar
+        let dict_listening = listener.is_some();
         render_status_bar(
             mode_ctrl.current_mode(),
             &current_tokens,
             token_index,
             &predictions,
-            asr_busy,
+            dict_listening,
         )?;
 
         // Poll for keyboard input (50ms timeout)
@@ -271,30 +470,33 @@ fn run_inner(
                         if is_mode_toggle(&key_event) {
                             mode_ctrl.toggle_mode();
                             log::info!("MODE: dictation -> raw");
+                            // Stop the continuous listener
+                            listener = None;
                             continue;
                         }
 
-                        // Only handle dictation keys if ASR is not busy
-                        if !asr_busy {
-                            handle_dictation_key(
-                                &key_event,
-                                &mut pty_writer,
-                                &mut current_tokens,
-                                &mut token_index,
-                                &predictions,
-                                &tokenizer,
-                                config,
-                                audio_config,
-                                &asr_engine,
-                                &asr_tx,
-                                &mut asr_busy,
-                            )?;
-                        }
+                        handle_dictation_key(
+                            &key_event,
+                            &mut pty_writer,
+                            &mut current_tokens,
+                            &mut token_index,
+                            &predictions,
+                        )?;
                     }
                     Mode::Raw => {
                         if is_mode_toggle(&key_event) {
                             mode_ctrl.toggle_mode();
                             log::info!("MODE: raw -> dictation");
+                            // Start the continuous listener
+                            match DictationListener::start(
+                                audio_config.clone(),
+                                Arc::clone(&asr_engine),
+                            ) {
+                                Ok(l) => listener = Some(l),
+                                Err(e) => {
+                                    log::error!("Failed to start dictation listener: {e}");
+                                }
+                            }
                             continue;
                         }
                         log::trace!("RAW: passing key through to PTY");
@@ -318,6 +520,7 @@ fn run_inner(
         }
     }
 
+    // Listener is dropped here, stopping the background thread.
     Ok(())
 }
 
@@ -327,10 +530,10 @@ fn render_status_bar(
     tokens: &TokenStream,
     token_index: Option<usize>,
     predictions: &[String],
-    asr_busy: bool,
+    dict_listening: bool,
 ) -> SpellcastResult<()> {
     let mode_str = mode.to_string();
-    let mut status = if asr_busy {
+    let mut status = if dict_listening {
         format!("[{} LISTENING...]", mode_str)
     } else {
         format!("[{}]", mode_str)
@@ -371,61 +574,18 @@ fn render_status_bar(
 }
 
 /// Handle a key event in dictation mode.
-#[allow(clippy::too_many_arguments)]
+///
+/// In continuous VAD mode, Space is no longer push-to-talk — it passes
+/// through to the PTY as a regular character. Special keys (h/l/x/r/e/1-3)
+/// still work for token navigation.
 fn handle_dictation_key(
     key: &KeyEvent,
     pty: &mut Box<dyn Write + Send>,
     tokens: &mut TokenStream,
     token_index: &mut Option<usize>,
     predictions: &[String],
-    _tokenizer: &HeuristicTokenizer,
-    _config: &SpellcastConfig,
-    audio_config: &SpcAudioConfig,
-    asr_engine: &Arc<Box<dyn AsrEngine>>,
-    asr_tx: &mpsc::Sender<Result<String, String>>,
-    asr_busy: &mut bool,
 ) -> SpellcastResult<()> {
     match key.code {
-        // Space triggers push-to-talk recording
-        KeyCode::Char(' ') if key.modifiers.is_empty() => {
-            log::info!("DICTATION: starting push-to-talk recording (3s)");
-            *asr_busy = true;
-
-            // Spawn recording + ASR on a background thread
-            let tx = asr_tx.clone();
-            let audio_cfg = audio_config.clone();
-            let asr = Arc::clone(asr_engine);
-
-            std::thread::spawn(move || {
-                // Create audio capture inside the thread (cpal::Device isn't Send)
-                match AudioCapture::new(&audio_cfg) {
-                    Ok(audio_capture) => match audio_capture.record_duration(3.0) {
-                        Ok(buffer) => {
-                            log::info!(
-                                "DICTATION: captured {} samples ({:.1}s)",
-                                buffer.samples.len(),
-                                buffer.duration_seconds()
-                            );
-                            match asr.transcribe(&buffer) {
-                                Ok(result) => {
-                                    let _ = tx.send(Ok(result.text));
-                                }
-                                Err(e) => {
-                                    let _ = tx.send(Err(format!("ASR error: {e}")));
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Err(format!("Audio capture error: {e}")));
-                        }
-                    },
-                    Err(e) => {
-                        let _ = tx.send(Err(format!("Audio init error: {e}")));
-                    }
-                }
-            });
-        }
-
         // Navigate to previous token
         KeyCode::Char('h') | KeyCode::Left if key.modifiers.is_empty() => {
             let idx = token_index.unwrap_or(tokens.len().saturating_sub(1));
@@ -461,38 +621,15 @@ fn handle_dictation_key(
             }
         }
 
-        // Re-dictate: delete highlighted token and start new recording
+        // Re-dictate: delete highlighted token (VAD will pick up new speech automatically)
         KeyCode::Char('r') if key.modifiers.is_empty() => {
             if let Some(idx) = *token_index {
                 if idx < tokens.len() {
                     tokens.remove(idx);
-                    log::info!("RE-DICTATE: removed token at {idx}, starting recording");
+                    log::info!("RE-DICTATE: removed token at {idx}");
                 }
                 *token_index = None;
             }
-            // Trigger recording
-            *asr_busy = true;
-            let tx = asr_tx.clone();
-            let audio_cfg = audio_config.clone();
-            let asr = Arc::clone(asr_engine);
-            std::thread::spawn(move || match AudioCapture::new(&audio_cfg) {
-                Ok(audio_capture) => match audio_capture.record_duration(3.0) {
-                    Ok(buffer) => match asr.transcribe(&buffer) {
-                        Ok(result) => {
-                            let _ = tx.send(Ok(result.text));
-                        }
-                        Err(e) => {
-                            let _ = tx.send(Err(format!("ASR error: {e}")));
-                        }
-                    },
-                    Err(e) => {
-                        let _ = tx.send(Err(format!("Audio capture error: {e}")));
-                    }
-                },
-                Err(e) => {
-                    let _ = tx.send(Err(format!("Audio init error: {e}")));
-                }
-            });
         }
 
         // Explain: trigger explain pipeline
@@ -537,7 +674,7 @@ fn handle_dictation_key(
             *token_index = None;
         }
 
-        // Other printable characters: pass through
+        // Other printable characters (including Space): pass through to PTY
         KeyCode::Char(c) if key.modifiers.is_empty() => {
             let _ = write!(pty, "{}", c);
             pty.flush().ok();
@@ -713,6 +850,59 @@ mod tests {
             state: event::KeyEventState::NONE,
         };
         assert!(!is_mode_toggle(&plain_space));
+    }
+
+    #[test]
+    fn test_space_is_not_push_to_talk() {
+        // In the new continuous VAD model, Space in dictation mode should
+        // fall through to the "printable character" arm and be written to
+        // the PTY — it must NOT trigger recording.
+        //
+        // We verify this by checking that handle_dictation_key with Space
+        // writes a space character to the PTY. We use a shared buffer so
+        // we can read it after the Box<dyn Write> is dropped.
+        use std::sync::{Arc, Mutex};
+
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+
+        struct SharedWriter(Arc<Mutex<Vec<u8>>>);
+        impl Write for SharedWriter {
+            fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(data);
+                Ok(data.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut pty: Box<dyn Write + Send> = Box::new(SharedWriter(Arc::clone(&buf)));
+        let mut tokens = TokenStream::new(TokenContext::Prose);
+        let mut token_index: Option<usize> = None;
+        let predictions: Vec<String> = Vec::new();
+
+        let space_key = KeyEvent {
+            code: KeyCode::Char(' '),
+            modifiers: KeyModifiers::NONE,
+            kind: event::KeyEventKind::Press,
+            state: event::KeyEventState::NONE,
+        };
+
+        // This should write ' ' to the PTY instead of starting recording.
+        // The function signature no longer takes audio/asr params, proving
+        // push-to-talk is gone.
+        let result = handle_dictation_key(
+            &space_key,
+            &mut pty,
+            &mut tokens,
+            &mut token_index,
+            &predictions,
+        );
+        assert!(result.is_ok());
+
+        // Drop pty so the Arc<Mutex> borrow is released, then check buffer.
+        drop(pty);
+        assert_eq!(*buf.lock().unwrap(), b" ");
     }
 
     #[test]

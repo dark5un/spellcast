@@ -3,10 +3,13 @@
 //! Mode controller — manages the Spellcast mode state machine.
 //!
 //! Modes:
-//! - **Dictation** (default when Caps Lock is ON): Speech becomes text.
+//! - **Dictation** (entered via Ctrl+Space or Caps Lock): Speech becomes text.
 //!   Navigation/editing keys operate on tokens.
-//! - **Raw** (Caps Lock OFF): Spellcast is transparent, all keys pass through.
-//! - **Killed**: Kill switch engaged, Spellcast fully disabled until toggle.
+//! - **Raw** (default): Spellcast is transparent, all keys pass through.
+//! - **Killed**: Kill switch engaged (Ctrl+G), Spellcast fully disabled until toggled again.
+//!
+//! Note: The mode toggle is Ctrl+Space (universal) or Caps Lock (kitty keyboard protocol).
+//! The kill switch is Ctrl+G (detected as both Ctrl+G and BEL 0x07 in raw mode).
 
 use serde::{Deserialize, Serialize};
 
@@ -51,9 +54,9 @@ impl std::fmt::Display for Mode {
 /// Controller for Spellcast mode transitions.
 ///
 /// Handles:
-/// - Caps Lock toggle (Dictation ↔ Raw)
+/// - Ctrl+Space / Caps Lock toggle (Dictation ↔ Raw)
 /// - Shift+Caps Lock for actual capital letters
-/// - Kill switch (Ctrl+Shift+Escape) for hard disable/re-enable
+/// - Kill switch (Ctrl+G) for hard disable/re-enable
 #[derive(Debug, Clone)]
 pub struct ModeController {
     mode: Mode,

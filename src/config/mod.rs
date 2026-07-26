@@ -131,7 +131,7 @@ impl Default for KeyConfig {
             redictate: "r".to_string(),
             delete_token: "x".to_string(),
             explain: "e".to_string(),
-            kill_switch: "Ctrl+Shift+Escape".to_string(),
+            kill_switch: "Ctrl+G".to_string(),
             accept_prediction_1: "1".to_string(),
             accept_prediction_2: "2".to_string(),
             accept_prediction_3: "3".to_string(),

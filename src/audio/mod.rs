@@ -52,6 +52,7 @@ pub struct AudioCapture {
     config: AudioConfig,
     _device: cpal::Device,
     _supported_config: cpal::SupportedStreamConfig,
+    device_sample_rate: u32,
 }
 
 impl AudioCapture {
@@ -86,6 +87,8 @@ impl AudioCapture {
             .default_input_config()
             .map_err(|e| SpellcastError::Audio(format!("Failed to query input configs: {e}")))?;
 
+        let device_sample_rate = supported_config.sample_rate();
+
         log::info!(
             "Audio device: {} ({:?})",
             description.name(),
@@ -96,7 +99,75 @@ impl AudioCapture {
             config: config.clone(),
             _device: device,
             _supported_config: supported_config,
+            device_sample_rate,
         })
+    }
+
+    /// Returns the audio device's native sample rate.
+    pub fn device_sample_rate(&self) -> u32 {
+        self.device_sample_rate
+    }
+
+    /// Start a continuous audio capture stream.
+    ///
+    /// Audio samples (as f32) are pushed into the provided channel as they arrive.
+    /// The returned `cpal::platform::Stream` must be kept alive for the duration
+    /// of capture — dropping it stops the stream.
+    ///
+    /// If the device's native sample rate differs from 16 kHz, samples are
+    /// resampled to 16 kHz before being sent.
+    pub fn start_continuous(
+        &self,
+        chunk_tx: std::sync::mpsc::Sender<Vec<f32>>,
+    ) -> SpellcastResult<cpal::platform::Stream> {
+        let samples = Arc::new(Mutex::new(Vec::<f32>::new()));
+        let samples_clone = Arc::clone(&samples);
+        let chunk_tx = Arc::new(Mutex::new(chunk_tx));
+        let chunk_tx_clone = Arc::clone(&chunk_tx);
+
+        let err_channel = Arc::new(Mutex::new(None::<String>));
+        let err_clone = Arc::clone(&err_channel);
+
+        let device_rate = self.device_sample_rate;
+        let target_rate = self.config.sample_rate;
+
+        let stream: cpal::platform::Stream = self
+            ._device
+            .build_input_stream::<f32, _, _>(
+                self._supported_config.config(),
+                move |data: &[f32], _: &cpal::InputCallbackInfo| {
+                    // Convert from f32 [-1.0, 1.0] to our target rate
+                    let pcm_f32: Vec<f32> = if device_rate != target_rate {
+                        resample_linear_f32(data, device_rate, target_rate)
+                    } else {
+                        data.to_vec()
+                    };
+
+                    let mut guard = samples_clone.lock().unwrap();
+                    guard.extend_from_slice(&pcm_f32);
+
+                    // Emit 512-sample chunks (VAD chunk size at 16 kHz)
+                    let chunk_size = 512usize;
+                    while guard.len() >= chunk_size {
+                        let chunk: Vec<f32> = guard.drain(..chunk_size).collect();
+                        if let Ok(tx) = chunk_tx_clone.lock() {
+                            let _ = tx.send(chunk);
+                        }
+                    }
+                },
+                move |err| {
+                    let mut guard = err_clone.lock().unwrap();
+                    *guard = Some(format!("Audio stream error: {err}"));
+                },
+                None,
+            )
+            .map_err(|e| SpellcastError::Audio(format!("Failed to build input stream: {e}")))?;
+
+        stream
+            .play()
+            .map_err(|e| SpellcastError::Audio(format!("Failed to start audio stream: {e}")))?;
+
+        Ok(stream)
     }
 
     /// Record audio for the given duration in seconds.
@@ -195,7 +266,7 @@ impl AudioCapture {
     }
 }
 
-/// Simple linear resampling.
+/// Simple linear resampling (i16).
 fn resample_linear(input: &[i16], from_rate: u32, to_rate: u32) -> Vec<i16> {
     if from_rate == to_rate {
         return input.to_vec();
@@ -214,6 +285,31 @@ fn resample_linear(input: &[i16], from_rate: u32, to_rate: u32) -> Vec<i16> {
             output.push(sample as i16);
         } else {
             output.push(*input.last().unwrap_or(&0));
+        }
+    }
+
+    output
+}
+
+/// Linear resampling for f32 samples (for continuous VAD capture).
+fn resample_linear_f32(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+    if from_rate == to_rate {
+        return input.to_vec();
+    }
+    let ratio = from_rate as f64 / to_rate as f64;
+    let output_len = (input.len() as f64 / ratio) as usize;
+    let mut output = Vec::with_capacity(output_len);
+
+    for i in 0..output_len {
+        let src_pos = i as f64 * ratio;
+        let src_idx = src_pos as usize;
+        let frac = src_pos - src_idx as f64;
+
+        if src_idx + 1 < input.len() {
+            let sample = input[src_idx] as f64 * (1.0 - frac) + input[src_idx + 1] as f64 * frac;
+            output.push(sample as f32);
+        } else {
+            output.push(*input.last().unwrap_or(&0.0));
         }
     }
 
@@ -267,6 +363,21 @@ mod tests {
         let input = vec![100i16, 200, 300, 400];
         let output = resample_linear(&input, 16000, 16000);
         assert_eq!(input, output);
+    }
+
+    #[test]
+    fn test_resample_linear_f32_identity() {
+        let input = vec![0.1f32, 0.2, 0.3, 0.4];
+        let output = resample_linear_f32(&input, 16000, 16000);
+        assert_eq!(input, output);
+    }
+
+    #[test]
+    fn test_resample_linear_f32_downsample() {
+        // 48000 -> 16000 is a 3:1 ratio
+        let input = vec![0.0f32, 0.1, 0.2, 0.3, 0.4, 0.5];
+        let output = resample_linear_f32(&input, 48000, 16000);
+        assert_eq!(output.len(), 2);
     }
 
     #[test]
