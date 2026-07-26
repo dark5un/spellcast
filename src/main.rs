@@ -64,44 +64,35 @@ fn main() -> anyhow::Result<()> {
     let config = spellcast::config::load_config(&config_path)?;
     info!("Configuration loaded from {:?}", config_path);
 
-    // Handle --check-audio: list devices and exit
+    // Handle --check-audio: list input devices and exit
     if cli.check_audio {
         let host = cpal::default_host();
         println!("Audio host: {}\n", host.id().name());
 
         println!("Input devices:");
-        let mut seen_input: HashSet<String> = HashSet::new();
-        match host.input_devices() {
-            Ok(devices) => {
-                for (i, device) in devices.enumerate() {
-                    if let Ok(name) = device.description().map(|d| d.name().to_string())
-                        && seen_input.insert(name.clone())
-                    {
-                        println!("  {:3}. {}", i + 1, name);
-                    }
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut idx = 0;
+        let default_name = host
+            .default_input_device()
+            .and_then(|d| d.description().ok())
+            .map(|d| d.name().to_string());
+        if let Ok(devices) = host.input_devices() {
+            for device in devices {
+                if let Ok(name) = device.description().map(|d| d.name().to_string())
+                    && seen.insert(name.clone())
+                {
+                    idx += 1;
+                    let marker = if Some(name.as_str()) == default_name.as_deref() {
+                        " * (default)"
+                    } else {
+                        ""
+                    };
+                    println!("  {:3}. {}{}", idx, name, marker);
                 }
             }
-            Err(e) => eprintln!("Failed to list input devices: {e}"),
-        }
-
-        println!("\nOutput devices:");
-        let mut seen_output: HashSet<String> = HashSet::new();
-        match host.output_devices() {
-            Ok(devices) => {
-                for (i, device) in devices.enumerate() {
-                    if let Ok(name) = device.description().map(|d| d.name().to_string())
-                        && seen_output.insert(name.clone())
-                    {
-                        println!("  {:3}. {}", i + 1, name);
-                    }
-                }
-            }
-            Err(e) => eprintln!("Failed to list output devices: {e}"),
         }
         return Ok(());
-    }
-
-    // Create mode controller
+    } // Create mode controller
     let mut mode_ctrl = spellcast::ModeController::new();
     info!("Mode controller initialized");
 
