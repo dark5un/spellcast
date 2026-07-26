@@ -5,6 +5,8 @@
 //! Supports CUDA, Vulkan, and CPU backends.
 //! Auto-detects the best available backend at startup.
 
+pub mod multi_gpu;
+
 use crate::config::BackendType;
 use crate::error::{SpellcastError, SpellcastResult};
 

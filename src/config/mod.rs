@@ -188,18 +188,40 @@ impl Default for LanguageConfig {
     }
 }
 
-/// Top-level Spellcast configuration.
+/// Compute backend configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackendConfig {
     /// Compute backend type
     #[serde(rename = "type")]
     pub backend_type: BackendType,
+    /// GPU assignment for multi-GPU setups
+    #[serde(default)]
+    pub gpu_assignment: GpuAssignment,
+}
+
+/// GPU assignment configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuAssignment {
+    /// Device index for ASR (default: 0)
+    pub asr_device: Option<usize>,
+    /// Device index for LLM explainer (default: 1 if available, else 0)
+    pub llm_device: Option<usize>,
+}
+
+impl Default for GpuAssignment {
+    fn default() -> Self {
+        Self {
+            asr_device: Some(0),
+            llm_device: None,
+        }
+    }
 }
 
 impl Default for BackendConfig {
     fn default() -> Self {
         Self {
             backend_type: BackendType::Auto,
+            gpu_assignment: GpuAssignment::default(),
         }
     }
 }
