@@ -422,15 +422,19 @@ fn run_inner(
             }
         }
 
-        // Render status bar
+        // No status bar — it corrupts the terminal display by saving/restoring
+        // cursor position on every loop iteration. The mic LED and log file
+        // provide sufficient feedback. Mode, tokens, and predictions are
+        // logged to ~/.config/spellcast/spellcast.log.
         let dict_listening = listener.is_some();
-        render_status_bar(
-            mode_ctrl.current_mode(),
-            &current_tokens,
-            token_index,
-            &predictions,
-            dict_listening,
-        )?;
+        if dict_listening {
+            log::debug!(
+                "Status: mode={:?}, tokens={}, predictions={}",
+                mode_ctrl.current_mode(),
+                current_tokens.len(),
+                predictions.len()
+            );
+        }
 
         // Poll for keyboard input (50ms timeout)
         if !event::poll(std::time::Duration::from_millis(50))
@@ -529,52 +533,17 @@ fn run_inner(
     Ok(())
 }
 
-/// Render the status bar showing mode, token, and predictions.
+/// Status bar rendering is disabled.
+/// The save/restore cursor approach corrupts the terminal display.
+/// Mode, tokens, and predictions are logged to the log file instead.
+#[allow(dead_code)]
 fn render_status_bar(
-    mode: Mode,
-    tokens: &TokenStream,
-    token_index: Option<usize>,
-    predictions: &[String],
-    dict_listening: bool,
+    _mode: Mode,
+    _tokens: &TokenStream,
+    _token_index: Option<usize>,
+    _predictions: &[String],
+    _dict_listening: bool,
 ) -> SpellcastResult<()> {
-    let mode_str = mode.to_string();
-    let mut status = if dict_listening {
-        format!("[{} LISTENING...]", mode_str)
-    } else {
-        format!("[{}]", mode_str)
-    };
-
-    if let Some(idx) = token_index
-        && let Some(token) = tokens.get(idx)
-    {
-        status.push_str(&format!(" @{}:'{}'", idx, token.text));
-    }
-
-    if !predictions.is_empty() {
-        status.push_str(" |");
-        for (i, pred) in predictions.iter().enumerate() {
-            status.push_str(&format!(" {}:{}", i + 1, pred));
-        }
-    }
-
-    let (cols, rows) = crossterm::terminal::size()
-        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to get terminal size: {e}")))?;
-
-    let status_len = status.len() as u16;
-    let padding = cols.saturating_sub(status_len);
-
-    let padded_status = format!(
-        "\r{}\r\x1b[7m{:padding$}\x1b[0m\r",
-        "\x1b[K",
-        status,
-        padding = padding as usize
-    );
-
-    let bottom_row = rows - 1;
-    print!("\x1b[s\x1b[{};1H{}", bottom_row + 1, padded_status);
-    print!("\x1b[u");
-    std::io::stdout().flush().ok();
-
     Ok(())
 }
 
