@@ -381,7 +381,7 @@ fn run_inner(
                 Ok(text) => {
                     log::info!("ASR result: '{text}'");
                     if !text.is_empty() {
-                        // Tokenize the ASR result
+                        // Tokenize the ASR result into the draft buffer
                         if let Ok(new_tokens) = tokenizer.tokenize(&text) {
                             log::info!(
                                 "Tokenized into {} tokens (context: {:?})",
@@ -389,13 +389,14 @@ fn run_inner(
                                 new_tokens.context
                             );
 
-                            // Write the text to the PTY
-                            let _ = write!(pty_writer, "{text} ");
-                            pty_writer.flush().ok();
-
-                            // Merge new tokens into current stream
+                            // Merge new tokens into the draft buffer (NOT the PTY)
                             for token in new_tokens.tokens {
                                 current_tokens.tokens.push(token);
+                            }
+
+                            // Set cursor to the last token
+                            if !current_tokens.is_empty() {
+                                token_index = Some(current_tokens.len() - 1);
                             }
 
                             // Run predictor on the last word
@@ -410,6 +411,9 @@ fn run_inner(
                                     .collect();
                                 log::info!("Predictions for '{}': {:?}", last.text, predictions);
                             }
+
+                            // Render the draft buffer
+                            render_draft(&current_tokens, token_index, &predictions)?;
                         }
                     }
                 }
@@ -419,16 +423,12 @@ fn run_inner(
             }
         }
 
-        // No status bar — it corrupts the terminal display by saving/restoring
-        // cursor position on every loop iteration. The mic LED and log file
-        // provide sufficient feedback. Mode, tokens, and predictions are
-        // logged to ~/.config/spellcast/spellcast.log.
+        // Log status in dictation mode
         let dict_listening = listener.is_some();
-        if dict_listening {
+        if dict_listening && current_tokens.is_empty() {
             log::debug!(
-                "Status: mode={:?}, tokens={}, predictions={}",
+                "Status: mode={:?}, draft empty, predictions={}",
                 mode_ctrl.current_mode(),
-                current_tokens.len(),
                 predictions.len()
             );
         }
@@ -486,7 +486,7 @@ fn run_inner(
                             &mut pty_writer,
                             &mut current_tokens,
                             &mut token_index,
-                            &predictions,
+                            &mut predictions,
                         )?;
                     }
                     Mode::Raw => {
@@ -530,6 +530,69 @@ fn run_inner(
     Ok(())
 }
 
+/// Render the draft buffer on the line below the cursor.
+/// The current token is highlighted in reverse video.
+/// Predictions are shown on the line below that.
+fn render_draft(
+    tokens: &TokenStream,
+    token_index: Option<usize>,
+    predictions: &[String],
+) -> SpellcastResult<()> {
+    use std::io::Write as _;
+
+    if tokens.is_empty() {
+        return Ok(());
+    }
+
+    let mut stdout = std::io::stdout();
+
+    // Save cursor, move to next line
+    let _ = write!(stdout, "\r\n");
+
+    // Render each token, highlighting the current one
+    for (i, token) in tokens.tokens.iter().enumerate() {
+        if Some(i) == token_index {
+            // Reverse video for current token
+            let _ = write!(stdout, "\x1b[7m{}\x1b[0m", token.text);
+        } else {
+            let _ = write!(stdout, "{}", token.text);
+        }
+    }
+
+    // Show predictions on the line below if any
+    if !predictions.is_empty() {
+        let _ = write!(stdout, "\r\n");
+        for (i, pred) in predictions.iter().enumerate() {
+            let _ = write!(stdout, " {}: {}  ", i + 1, pred);
+        }
+    }
+
+    // Move cursor back to the shell prompt position
+    // (up by the number of lines we printed, then to column 0)
+    let lines_printed = 1 + if !predictions.is_empty() { 1 } else { 0 };
+    let _ = write!(stdout, "\r\x1b[{}A", lines_printed);
+
+    let _ = stdout.flush();
+    Ok(())
+}
+
+/// Clear the draft display from the terminal.
+fn clear_draft(token_count: usize) -> SpellcastResult<()> {
+    use std::io::Write as _;
+
+    if token_count == 0 {
+        return Ok(());
+    }
+
+    let mut stdout = std::io::stdout();
+
+    // Move down one line, clear it, move back up
+    let _ = write!(stdout, "\r\n\x1b[2K\r\x1b[A");
+
+    let _ = stdout.flush();
+    Ok(())
+}
+
 /// Status bar rendering is disabled.
 /// The save/restore cursor approach corrupts the terminal display.
 /// Mode, tokens, and predictions are logged to the log file instead.
@@ -554,7 +617,7 @@ fn handle_dictation_key(
     pty: &mut Box<dyn Write + Send>,
     tokens: &mut TokenStream,
     token_index: &mut Option<usize>,
-    predictions: &[String],
+    predictions: &mut Vec<String>,
 ) -> SpellcastResult<()> {
     match key.code {
         // Navigate to previous token
@@ -564,6 +627,7 @@ fn handle_dictation_key(
                 *token_index = Some(idx - 1);
             }
             log::trace!("NAV: prev token, index={:?}", token_index);
+            render_draft(tokens, *token_index, predictions)?;
         }
 
         // Navigate to next token
@@ -573,6 +637,7 @@ fn handle_dictation_key(
                 *token_index = Some(idx + 1);
             }
             log::trace!("NAV: next token, index={:?}", token_index);
+            render_draft(tokens, *token_index, predictions)?;
         }
 
         // Delete highlighted token
@@ -589,21 +654,23 @@ fn handle_dictation_key(
                 } else {
                     Some(idx)
                 };
+                render_draft(tokens, *token_index, predictions)?;
             }
         }
 
-        // Re-dictate: delete highlighted token (VAD will pick up new speech automatically)
+        // Re-dictate: delete highlighted token (VAD will pick up new speech)
         KeyCode::Char('r') if key.modifiers.is_empty() => {
-            if let Some(idx) = *token_index {
-                if idx < tokens.len() {
-                    tokens.remove(idx);
-                    log::info!("RE-DICTATE: removed token at {idx}");
-                }
+            if let Some(idx) = *token_index
+                && idx < tokens.len()
+            {
+                tokens.remove(idx);
+                log::info!("RE-DICTATE: removed token at {idx}");
                 *token_index = None;
+                render_draft(tokens, *token_index, predictions)?;
             }
         }
 
-        // Explain: trigger explain pipeline
+        // Explain: trigger explain pipeline (not yet wired to LLM)
         KeyCode::Char('e') if key.modifiers.is_empty() => {
             if let Some(idx) = *token_index
                 && let Some(token) = tokens.get(idx)
@@ -612,7 +679,6 @@ fn handle_dictation_key(
                     "EXPLAIN: triggered on token '{}' (explainer not yet wired)",
                     token.text
                 );
-                // TODO: wire explainer when LLM feature is available
             }
         }
 
@@ -622,34 +688,76 @@ fn handle_dictation_key(
             if pred_idx < predictions.len() {
                 let prediction = predictions[pred_idx].clone();
                 log::info!("PREDICT: accepted prediction {pred_idx}: '{prediction}'");
-                let _ = write!(pty, "{}", prediction);
-                pty.flush().ok();
+
+                // Replace the current token with the prediction
+                if let Some(idx) = *token_index
+                    && idx < tokens.len()
+                {
+                    tokens.tokens[idx].text = prediction.clone();
+                }
                 *token_index = None;
+                predictions.clear();
+                render_draft(tokens, *token_index, predictions)?;
             }
         }
 
-        // Enter
+        // Enter: commit draft buffer to shell
         KeyCode::Enter => {
-            let _ = writeln!(pty);
-            pty.flush().ok();
+            if !tokens.is_empty() {
+                let text: String = tokens
+                    .tokens
+                    .iter()
+                    .map(|t| t.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("");
+                log::info!("COMMIT: writing '{}' to PTY", text);
+
+                // Clear the draft display first
+                clear_draft(tokens.len())?;
+
+                // Write the committed text to the PTY
+                let _ = write!(pty, "{text}");
+                pty.flush().ok();
+
+                // Clear the draft buffer
+                tokens.tokens.clear();
+                *token_index = None;
+                predictions.clear();
+            } else {
+                // Empty draft, just send Enter
+                let _ = writeln!(pty);
+                pty.flush().ok();
+            }
         }
 
-        // Backspace
+        // Backspace: delete last token from draft
         KeyCode::Backspace => {
-            let _ = write!(pty, "\x08 \x08");
-            pty.flush().ok();
+            if !tokens.is_empty() {
+                tokens.tokens.pop();
+                *token_index = if tokens.is_empty() {
+                    None
+                } else {
+                    Some(tokens.len() - 1)
+                };
+                log::trace!("BACKSPACE: removed last token, {} remaining", tokens.len());
+                render_draft(tokens, *token_index, predictions)?;
+            }
         }
 
-        // Esc: clear selection
+        // Escape: discard the entire draft buffer
         KeyCode::Esc => {
-            *token_index = None;
+            if !tokens.is_empty() {
+                log::info!("DISCARD: clearing draft buffer ({} tokens)", tokens.len());
+                clear_draft(tokens.len())?;
+                tokens.tokens.clear();
+                *token_index = None;
+                predictions.clear();
+            }
         }
 
-        // Other printable characters (including Space): pass through to PTY
-        KeyCode::Char(c) if key.modifiers.is_empty() => {
-            let _ = write!(pty, "{}", c);
-            pty.flush().ok();
-        }
+        // Other printable characters: ignore in dictation mode
+        // (speech is the input method, not typing)
+        KeyCode::Char(_) if key.modifiers.is_empty() => {}
 
         _ => {}
     }
@@ -874,7 +982,7 @@ mod tests {
         let mut pty: Box<dyn Write + Send> = Box::new(SharedWriter(Arc::clone(&buf)));
         let mut tokens = TokenStream::new(TokenContext::Prose);
         let mut token_index: Option<usize> = None;
-        let predictions: Vec<String> = Vec::new();
+        let mut predictions: Vec<String> = Vec::new();
 
         let space_key = KeyEvent {
             code: KeyCode::Char(' '),
@@ -883,21 +991,20 @@ mod tests {
             state: event::KeyEventState::NONE,
         };
 
-        // This should write ' ' to the PTY instead of starting recording.
-        // The function signature no longer takes audio/asr params, proving
-        // push-to-talk is gone.
+        // This should NOT write anything to the PTY — in dictation mode,
+        // printable chars are ignored (speech is the input method, not typing).
         let result = handle_dictation_key(
             &space_key,
             &mut pty,
             &mut tokens,
             &mut token_index,
-            &predictions,
+            &mut predictions,
         );
         assert!(result.is_ok());
 
         // Drop pty so the Arc<Mutex> borrow is released, then check buffer.
         drop(pty);
-        assert_eq!(*buf.lock().unwrap(), b" ");
+        assert_eq!(*buf.lock().unwrap(), b"");
     }
 
     #[test]
