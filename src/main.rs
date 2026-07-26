@@ -144,18 +144,17 @@ fn main() -> anyhow::Result<()> {
     info!("Compute backend: {}", backend_type);
 
     // Initialize audio capture
-    let _audio_config = spellcast::audio::AudioConfig {
+    let audio_config = spellcast::audio::AudioConfig {
         sample_rate: config.audio.sample_rate,
         channels: config.audio.channels,
         device: config.audio.device.clone(),
     };
 
-    // Initialize ASR engine — suppress whisper.cpp stdout output
+    // Initialize ASR engine — suppress whisper.cpp stdout/stderr output
     // so it doesn't corrupt the terminal before alternate screen is entered
     #[cfg(feature = "cpu")]
-    let _asr_engine = {
+    let asr_engine: Box<dyn spellcast::asr::AsrEngine> = {
         use std::os::fd::AsRawFd;
-        // Save original stdout and stderr fds
         let saved_stdout = unsafe { libc::dup(1) };
         let saved_stderr = unsafe { libc::dup(2) };
         let dev_null = std::fs::OpenOptions::new()
@@ -172,7 +171,6 @@ fn main() -> anyhow::Result<()> {
         let asr = spellcast::asr::WhisperAsr::new(&model_path, backend_type)?;
         log::info!("ASR model loaded successfully");
 
-        // Restore original stdout and stderr
         unsafe {
             libc::dup2(saved_stdout, 1);
             libc::dup2(saved_stderr, 2);
@@ -181,13 +179,20 @@ fn main() -> anyhow::Result<()> {
         }
         drop(dev_null);
 
-        asr
+        Box::new(asr)
     };
     #[cfg(not(feature = "cpu"))]
-    let _asr_engine = spellcast::asr::NoopAsr::new();
+    let asr_engine: Box<dyn spellcast::asr::AsrEngine> = Box::new(spellcast::asr::NoopAsr::new());
 
     // Run the main terminal loop
-    spellcast::terminal::run_terminal_loop(&config, &mut mode_ctrl, &memory, cli.shell.as_deref())?;
+    spellcast::terminal::run_terminal_loop(
+        &config,
+        &mut mode_ctrl,
+        &memory,
+        cli.shell.as_deref(),
+        asr_engine,
+        &audio_config,
+    )?;
 
     info!("Spellcast shutting down");
     Ok(())

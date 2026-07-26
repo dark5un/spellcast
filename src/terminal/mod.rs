@@ -5,12 +5,13 @@
 //! Spellcast operates as a PTY wrapper:
 //! - Spawns the user's shell in a pseudo-terminal
 //! - Intercepts keyboard input (raw mode via crossterm)
-//! - Injects processed text into the PTY
+//! - In dictation mode: captures audio, runs ASR, tokenizes, injects text
+//! - In raw mode: passes all keys through to the PTY
 //! - Renders a status bar with mode indicator, token, and predictions
 
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc;
+use std::sync::{Arc, mpsc};
 
 pub mod highlight;
 
@@ -18,11 +19,14 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
+use crate::asr::AsrEngine;
+use crate::audio::{AudioCapture, AudioConfig as SpcAudioConfig};
 use crate::config::SpellcastConfig;
 use crate::error::{SpellcastError, SpellcastResult};
 use crate::memory::MemoryStore;
 use crate::modes::{Mode, ModeController};
-use crate::tokenizer::{HeuristicTokenizer, TokenContext, TokenStream};
+use crate::predictor::Predictor;
+use crate::tokenizer::{HeuristicTokenizer, TokenContext, TokenStream, Tokenizer};
 
 /// Global flag for the kill switch (accessible from signal handlers).
 static KILL_SWITCH_ENGAGED: AtomicBool = AtomicBool::new(false);
@@ -61,8 +65,10 @@ impl Drop for TerminalGuard {
 pub fn run_terminal_loop(
     config: &SpellcastConfig,
     mode_ctrl: &mut ModeController,
-    _memory: &MemoryStore,
+    memory: &MemoryStore,
     shell: Option<&str>,
+    asr_engine: Box<dyn AsrEngine>,
+    audio_config: &SpcAudioConfig,
 ) -> SpellcastResult<()> {
     // Raw mode FIRST, then alternate screen
     terminal::enable_raw_mode()
@@ -72,7 +78,7 @@ pub fn run_terminal_loop(
     })?;
     let _guard = TerminalGuard::new();
 
-    let result = run_inner(config, mode_ctrl, _memory, shell);
+    let result = run_inner(config, mode_ctrl, memory, shell, asr_engine, audio_config);
 
     let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
     let _ = terminal::disable_raw_mode();
@@ -85,8 +91,14 @@ fn run_inner(
     mode_ctrl: &mut ModeController,
     _memory: &MemoryStore,
     shell: Option<&str>,
+    asr_engine: Box<dyn AsrEngine>,
+    audio_config: &SpcAudioConfig,
 ) -> SpellcastResult<()> {
     let tokenizer = HeuristicTokenizer::new();
+    let predictor = Predictor::new();
+
+    // Wrap ASR engine in Arc for shared access from background threads
+    let asr_engine = Arc::new(asr_engine);
 
     // Create the PTY
     let pty_system = native_pty_system();
@@ -107,7 +119,7 @@ fn run_inner(
         .spawn_command(cmd)
         .map_err(|e| SpellcastError::TerminalPty(format!("Failed to spawn shell: {e}")))?;
 
-    // PTY reader — spawn a dedicated thread so it doesn't block the event loop
+    // PTY reader — dedicated thread so it doesn't block the event loop
     let mut pty_reader = pair
         .master
         .try_clone_reader()
@@ -137,8 +149,11 @@ fn run_inner(
     // State for token navigation
     let mut current_tokens: TokenStream = TokenStream::new(TokenContext::Prose);
     let mut token_index: Option<usize> = None;
-    let mut pending_text: String = String::new();
     let mut predictions: Vec<String> = Vec::new();
+
+    // ASR result channel — receives transcribed text from background thread
+    let (asr_tx, asr_rx) = mpsc::channel::<Result<String, String>>();
+    let mut asr_busy = false;
 
     // Main event loop
     loop {
@@ -153,11 +168,55 @@ fn run_inner(
         while let Ok(data) = pty_rx.try_recv() {
             got_output = true;
             let output = String::from_utf8_lossy(&data);
-            log::trace!("PTY OUT: {} bytes", data.len());
             print!("{}", output);
         }
         if got_output {
             let _ = std::io::stdout().flush();
+        }
+
+        // Check for ASR result (non-blocking)
+        if asr_busy && let Ok(result) = asr_rx.try_recv() {
+            asr_busy = false;
+            match result {
+                Ok(text) => {
+                    log::info!("ASR result: '{text}'");
+                    if !text.is_empty() {
+                        // Tokenize the ASR result
+                        if let Ok(new_tokens) = tokenizer.tokenize(&text) {
+                            log::info!(
+                                "Tokenized into {} tokens (context: {:?})",
+                                new_tokens.len(),
+                                new_tokens.context
+                            );
+
+                            // Write the text to the PTY
+                            let _ = write!(pty_writer, "{text} ");
+                            pty_writer.flush().ok();
+
+                            // Merge new tokens into current stream
+                            for token in new_tokens.tokens {
+                                current_tokens.tokens.push(token);
+                            }
+
+                            // Run predictor on the last word
+                            if let Some(last) = current_tokens.tokens.last()
+                                && !last.text.is_empty()
+                            {
+                                predictions = predictor
+                                    .predict(&last.text, 3)
+                                    .unwrap_or_default()
+                                    .into_iter()
+                                    .map(|p| p.word)
+                                    .collect();
+                                log::info!("Predictions for '{}': {:?}", last.text, predictions);
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("ASR error: {e}");
+                }
+            }
         }
 
         // Render status bar
@@ -166,9 +225,10 @@ fn run_inner(
             &current_tokens,
             token_index,
             &predictions,
+            asr_busy,
         )?;
 
-        // Poll for keyboard input (10ms timeout)
+        // Poll for keyboard input (50ms timeout)
         if !event::poll(std::time::Duration::from_millis(50))
             .map_err(|e| SpellcastError::TerminalPty(format!("Event poll error: {e}")))?
         {
@@ -202,7 +262,6 @@ fn run_inner(
 
                 // In killed mode, pass everything through
                 if mode_ctrl.current_mode().is_killed() {
-                    log::trace!("KILLED MODE: passing key through to PTY");
                     write_pty(&mut pty_writer, &key_event)?;
                     continue;
                 }
@@ -214,17 +273,23 @@ fn run_inner(
                             log::info!("MODE: dictation -> raw");
                             continue;
                         }
-                        log::trace!("DICTATION: handling key");
-                        handle_dictation_key(
-                            &key_event,
-                            &mut pty_writer,
-                            &mut current_tokens,
-                            &mut token_index,
-                            &mut pending_text,
-                            &mut predictions,
-                            &tokenizer,
-                            config,
-                        )?;
+
+                        // Only handle dictation keys if ASR is not busy
+                        if !asr_busy {
+                            handle_dictation_key(
+                                &key_event,
+                                &mut pty_writer,
+                                &mut current_tokens,
+                                &mut token_index,
+                                &predictions,
+                                &tokenizer,
+                                config,
+                                audio_config,
+                                &asr_engine,
+                                &asr_tx,
+                                &mut asr_busy,
+                            )?;
+                        }
                     }
                     Mode::Raw => {
                         if is_mode_toggle(&key_event) {
@@ -262,9 +327,14 @@ fn render_status_bar(
     tokens: &TokenStream,
     token_index: Option<usize>,
     predictions: &[String],
+    asr_busy: bool,
 ) -> SpellcastResult<()> {
     let mode_str = mode.to_string();
-    let mut status = format!("[{}]", mode_str);
+    let mut status = if asr_busy {
+        format!("[{} LISTENING...]", mode_str)
+    } else {
+        format!("[{}]", mode_str)
+    };
 
     if let Some(idx) = token_index
         && let Some(token) = tokens.get(idx)
@@ -272,8 +342,11 @@ fn render_status_bar(
         status.push_str(&format!(" @{}:'{}'", idx, token.text));
     }
 
-    for (i, pred) in predictions.iter().enumerate() {
-        status.push_str(&format!(" {0}:{1}", i + 1, pred));
+    if !predictions.is_empty() {
+        status.push_str(" |");
+        for (i, pred) in predictions.iter().enumerate() {
+            status.push_str(&format!(" {}:{}", i + 1, pred));
+        }
     }
 
     let (cols, rows) = crossterm::terminal::size()
@@ -304,86 +377,173 @@ fn handle_dictation_key(
     pty: &mut Box<dyn Write + Send>,
     tokens: &mut TokenStream,
     token_index: &mut Option<usize>,
-    pending_text: &mut String,
-    predictions: &mut Vec<String>,
+    predictions: &[String],
     _tokenizer: &HeuristicTokenizer,
     _config: &SpellcastConfig,
+    audio_config: &SpcAudioConfig,
+    asr_engine: &Arc<Box<dyn AsrEngine>>,
+    asr_tx: &mpsc::Sender<Result<String, String>>,
+    asr_busy: &mut bool,
 ) -> SpellcastResult<()> {
     match key.code {
+        // Space triggers push-to-talk recording
+        KeyCode::Char(' ') if key.modifiers.is_empty() => {
+            log::info!("DICTATION: starting push-to-talk recording (3s)");
+            *asr_busy = true;
+
+            // Spawn recording + ASR on a background thread
+            let tx = asr_tx.clone();
+            let audio_cfg = audio_config.clone();
+            let asr = Arc::clone(asr_engine);
+
+            std::thread::spawn(move || {
+                // Create audio capture inside the thread (cpal::Device isn't Send)
+                match AudioCapture::new(&audio_cfg) {
+                    Ok(audio_capture) => match audio_capture.record_duration(3.0) {
+                        Ok(buffer) => {
+                            log::info!(
+                                "DICTATION: captured {} samples ({:.1}s)",
+                                buffer.samples.len(),
+                                buffer.duration_seconds()
+                            );
+                            match asr.transcribe(&buffer) {
+                                Ok(result) => {
+                                    let _ = tx.send(Ok(result.text));
+                                }
+                                Err(e) => {
+                                    let _ = tx.send(Err(format!("ASR error: {e}")));
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!("Audio capture error: {e}")));
+                        }
+                    },
+                    Err(e) => {
+                        let _ = tx.send(Err(format!("Audio init error: {e}")));
+                    }
+                }
+            });
+        }
+
+        // Navigate to previous token
         KeyCode::Char('h') | KeyCode::Left if key.modifiers.is_empty() => {
             let idx = token_index.unwrap_or(tokens.len().saturating_sub(1));
             if idx > 0 {
                 *token_index = Some(idx - 1);
             }
+            log::trace!("NAV: prev token, index={:?}", token_index);
         }
+
+        // Navigate to next token
         KeyCode::Char('l') | KeyCode::Right if key.modifiers.is_empty() => {
             let idx = token_index.unwrap_or(0);
             if idx + 1 < tokens.len() {
                 *token_index = Some(idx + 1);
             }
+            log::trace!("NAV: next token, index={:?}", token_index);
         }
+
+        // Delete highlighted token
         KeyCode::Char('x') if key.modifiers.is_empty() => {
-            if let Some(idx) = *token_index {
+            if let Some(idx) = *token_index
+                && idx < tokens.len()
+            {
                 tokens.remove(idx);
-                if idx >= tokens.len() {
-                    *token_index = if tokens.is_empty() {
-                        None
-                    } else {
-                        Some(tokens.len() - 1)
-                    };
-                }
+                log::info!("DELETE: removed token at {idx}");
+                *token_index = if tokens.is_empty() {
+                    None
+                } else if idx >= tokens.len() {
+                    Some(tokens.len() - 1)
+                } else {
+                    Some(idx)
+                };
             }
-            *token_index = None;
         }
+
+        // Re-dictate: delete highlighted token and start new recording
         KeyCode::Char('r') if key.modifiers.is_empty() => {
             if let Some(idx) = *token_index {
-                tokens.remove(idx);
+                if idx < tokens.len() {
+                    tokens.remove(idx);
+                    log::info!("RE-DICTATE: removed token at {idx}, starting recording");
+                }
                 *token_index = None;
-                *pending_text = String::new();
-                log::info!("Re-dictate triggered at token {idx}");
             }
+            // Trigger recording
+            *asr_busy = true;
+            let tx = asr_tx.clone();
+            let audio_cfg = audio_config.clone();
+            let asr = Arc::clone(asr_engine);
+            std::thread::spawn(move || match AudioCapture::new(&audio_cfg) {
+                Ok(audio_capture) => match audio_capture.record_duration(3.0) {
+                    Ok(buffer) => match asr.transcribe(&buffer) {
+                        Ok(result) => {
+                            let _ = tx.send(Ok(result.text));
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(format!("ASR error: {e}")));
+                        }
+                    },
+                    Err(e) => {
+                        let _ = tx.send(Err(format!("Audio capture error: {e}")));
+                    }
+                },
+                Err(e) => {
+                    let _ = tx.send(Err(format!("Audio init error: {e}")));
+                }
+            });
         }
+
+        // Explain: trigger explain pipeline
         KeyCode::Char('e') if key.modifiers.is_empty() => {
             if let Some(idx) = *token_index
                 && let Some(token) = tokens.get(idx)
             {
-                log::info!("Explain triggered on token '{}'", token.text);
+                log::info!(
+                    "EXPLAIN: triggered on token '{}' (explainer not yet wired)",
+                    token.text
+                );
+                // TODO: wire explainer when LLM feature is available
             }
         }
+
+        // Accept prediction
         KeyCode::Char(c) if ('1'..='3').contains(&c) => {
             let pred_idx = (c as u8 - b'1') as usize;
             if pred_idx < predictions.len() {
                 let prediction = predictions[pred_idx].clone();
-                if let Some(idx) = *token_index {
-                    if idx < tokens.len() {
-                        let _ = write!(pty, "{}", prediction);
-                        *token_index = None;
-                        predictions.clear();
-                    }
-                } else {
-                    let _ = write!(pty, "{}", prediction);
-                    predictions.clear();
-                }
+                log::info!("PREDICT: accepted prediction {pred_idx}: '{prediction}'");
+                let _ = write!(pty, "{}", prediction);
+                pty.flush().ok();
+                *token_index = None;
             }
         }
-        KeyCode::Char(' ') => {
-            let _ = write!(pty, " ");
-        }
+
+        // Enter
         KeyCode::Enter => {
             let _ = writeln!(pty);
+            pty.flush().ok();
         }
+
+        // Backspace
         KeyCode::Backspace => {
             let _ = write!(pty, "\x08 \x08");
+            pty.flush().ok();
         }
+
+        // Esc: clear selection
         KeyCode::Esc => {
             *token_index = None;
-            predictions.clear();
         }
-        _ => {
-            if let KeyCode::Char(c) = key.code {
-                let _ = write!(pty, "{}", c);
-            }
+
+        // Other printable characters: pass through
+        KeyCode::Char(c) if key.modifiers.is_empty() => {
+            let _ = write!(pty, "{}", c);
+            pty.flush().ok();
         }
+
+        _ => {}
     }
 
     Ok(())
@@ -400,11 +560,9 @@ fn is_kill_switch(key: &KeyEvent) -> bool {
 /// Check if a key event toggles dictation mode.
 /// Accepts Caps Lock (kitty protocol) OR Ctrl+Space (universal fallback).
 fn is_mode_toggle(key: &KeyEvent) -> bool {
-    // Caps Lock via kitty keyboard protocol (if terminal supports it)
     if key.code == KeyCode::CapsLock {
         return true;
     }
-    // Ctrl+Space — works on ALL terminals, no kitty protocol needed
     if key.code == KeyCode::Char(' ') && key.modifiers.contains(KeyModifiers::CONTROL) {
         return true;
     }
@@ -499,7 +657,6 @@ mod tests {
 
     #[test]
     fn test_is_kill_switch() {
-        // Ctrl+G with CONTROL modifier (kitty protocol)
         let ks = KeyEvent {
             code: KeyCode::Char('g'),
             modifiers: KeyModifiers::CONTROL,
@@ -508,7 +665,6 @@ mod tests {
         };
         assert!(is_kill_switch(&ks));
 
-        // Raw BEL character (0x07) — what Ctrl+G sends in raw mode
         let bel_ks = KeyEvent {
             code: KeyCode::Char('\x07'),
             modifiers: KeyModifiers::NONE,
@@ -517,7 +673,6 @@ mod tests {
         };
         assert!(is_kill_switch(&bel_ks));
 
-        // Not a kill switch
         let not_ks = KeyEvent {
             code: KeyCode::Char('q'),
             modifiers: KeyModifiers::CONTROL,

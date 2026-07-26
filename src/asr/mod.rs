@@ -40,7 +40,7 @@ impl AsrResult {
 }
 
 /// Trait for ASR (speech-to-text) engines.
-pub trait AsrEngine: Send {
+pub trait AsrEngine: Send + Sync {
     /// Load a model from the given path.
     fn load_model(&mut self, model_path: &str) -> SpellcastResult<()>;
 
