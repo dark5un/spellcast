@@ -13,7 +13,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 pub mod highlight;
 
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    self, Event, KeyCode, KeyEvent, KeyModifiers, KeyboardEnhancementFlags,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 
@@ -54,6 +57,7 @@ impl TerminalGuard {
 
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
+        let _ = crossterm::execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
         let _ = terminal::disable_raw_mode();
         let _ = crossterm::execute!(std::io::stdout(), LeaveAlternateScreen);
     }
@@ -72,14 +76,17 @@ pub fn run_terminal_loop(
     shell: Option<&str>,
 ) -> SpellcastResult<()> {
     // Initialize terminal
-    terminal::enable_raw_mode()
-        .map_err(|e| SpellcastError::TerminalPty(format!("Failed to enable raw mode: {e}")))?;
-
     let mut stdout = std::io::stdout();
-    crossterm::execute!(stdout, EnterAlternateScreen)
-        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to enter alt screen: {e}")))?;
-
-    // Install signal handlers and ensure terminal restoration on drop
+    crossterm::execute!(stdout, EnterAlternateScreen).map_err(|e| {
+        SpellcastError::TerminalRender(format!("Failed to enter alternate screen: {e}"))
+    })?;
+    crossterm::execute!(
+        stdout,
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+    )
+    .ok();
+    terminal::enable_raw_mode()
+        .map_err(|e| SpellcastError::TerminalRender(format!("Failed to enable raw mode: {e}")))?;
     let _guard = TerminalGuard::new();
 
     let result = run_inner(config, mode_ctrl, _memory, shell);
@@ -413,16 +420,17 @@ fn handle_dictation_key(
     Ok(())
 }
 
-/// Check if a key event is the kill switch (Ctrl+Shift+X).
+/// Check if a key event is the kill switch (Ctrl+Alt+X).
 fn is_kill_switch(key: &KeyEvent) -> bool {
     key.code == KeyCode::Char('x')
         && key.modifiers.contains(KeyModifiers::CONTROL)
-        && key.modifiers.contains(KeyModifiers::SHIFT)
+        && key.modifiers.contains(KeyModifiers::ALT)
 }
 
-/// Check if a key event is the Caps Lock toggle (F10).
+/// Check if a key event is the Caps Lock toggle.
+/// Requires PushKeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES to be active.
 fn is_caps_lock_toggle(key: &KeyEvent) -> bool {
-    key.code == KeyCode::F(10)
+    key.code == KeyCode::CapsLock
 }
 
 /// Write a key event to the PTY.
@@ -517,7 +525,7 @@ mod tests {
     fn test_is_kill_switch() {
         let ks = KeyEvent {
             code: KeyCode::Char('x'),
-            modifiers: KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+            modifiers: KeyModifiers::CONTROL | KeyModifiers::ALT,
             kind: event::KeyEventKind::Press,
             state: event::KeyEventState::NONE,
         };
