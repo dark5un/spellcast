@@ -70,12 +70,16 @@ fn main() -> anyhow::Result<()> {
         .format_timestamp_secs()
         .init();
 
-    info!("Spellcast v{} starting up", env!("CARGO_PKG_VERSION"));
+    log::info!("Spellcast v{} starting up", env!("CARGO_PKG_VERSION"));
 
     // Load configuration
     let config_path = cli.config.clone();
     let mut config = spellcast::config::load_config(&config_path)?;
     info!("Configuration loaded from {:?}", config_path);
+    log::info!("Audio device: {}", config.audio.device);
+    log::info!("Backend: {:?}", config.backend.backend_type);
+    log::info!("Shell: {:?}", cli.shell.as_deref().unwrap_or("$SHELL"));
+    log::info!("Log file: ~/.config/spellcast/spellcast.log");
 
     // Handle --check-audio: list input devices and exit
     if cli.check_audio {

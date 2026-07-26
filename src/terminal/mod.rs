@@ -149,11 +149,16 @@ fn run_inner(
         }
 
         // Drain PTY output (non-blocking from channel)
+        let mut got_output = false;
         while let Ok(data) = pty_rx.try_recv() {
+            got_output = true;
             let output = String::from_utf8_lossy(&data);
+            log::trace!("PTY OUT: {} bytes", data.len());
             print!("{}", output);
         }
-        let _ = std::io::stdout().flush();
+        if got_output {
+            let _ = std::io::stdout().flush();
+        }
 
         // Render status bar
         render_status_bar(
@@ -174,21 +179,30 @@ fn run_inner(
             .map_err(|e| SpellcastError::TerminalPty(format!("Event read error: {e}")))?
         {
             Event::Key(key_event) => {
+                log::debug!(
+                    "KEY: code={:?} modifiers={:?} kind={:?}",
+                    key_event.code,
+                    key_event.modifiers,
+                    key_event.kind
+                );
+
                 // Check kill switch first
                 if is_kill_switch(&key_event) {
                     mode_ctrl.toggle_kill_switch();
                     KILL_SWITCH_ENGAGED
                         .store(mode_ctrl.current_mode().is_killed(), Ordering::SeqCst);
-                    if mode_ctrl.current_mode().is_killed() {
-                        log::info!("Kill switch engaged — Spellcast disabled");
-                    } else {
-                        log::info!("Kill switch disengaged — Spellcast re-enabled");
-                    }
+                    let killed = mode_ctrl.current_mode().is_killed();
+                    log::info!(
+                        "KILL SWITCH: {} (mode={:?})",
+                        if killed { "ENGAGED" } else { "DISENGAGED" },
+                        mode_ctrl.current_mode()
+                    );
                     continue;
                 }
 
                 // In killed mode, pass everything through
                 if mode_ctrl.current_mode().is_killed() {
+                    log::trace!("KILLED MODE: passing key through to PTY");
                     write_pty(&mut pty_writer, &key_event)?;
                     continue;
                 }
@@ -197,9 +211,10 @@ fn run_inner(
                     Mode::Dictation => {
                         if is_mode_toggle(&key_event) {
                             mode_ctrl.toggle_mode();
-                            log::info!("Switched to raw mode");
+                            log::info!("MODE: dictation -> raw");
                             continue;
                         }
+                        log::trace!("DICTATION: handling key");
                         handle_dictation_key(
                             &key_event,
                             &mut pty_writer,
@@ -214,9 +229,10 @@ fn run_inner(
                     Mode::Raw => {
                         if is_mode_toggle(&key_event) {
                             mode_ctrl.toggle_mode();
-                            log::info!("Switched to dictation mode");
+                            log::info!("MODE: raw -> dictation");
                             continue;
                         }
+                        log::trace!("RAW: passing key through to PTY");
                         write_pty(&mut pty_writer, &key_event)?;
                     }
                     Mode::Killed => {
