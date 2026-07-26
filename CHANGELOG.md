@@ -5,6 +5,88 @@ All notable changes to Spellcast are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-07-26
+
+### Added
+
+#### Phase 2A: Smart Tokenization & Code Dictation
+- **TreeSitterTokenizer**: AST-aware tokenizer with 17 language grammars (Rust, Go, Python, JavaScript, TypeScript, C, C++, Java, Bash, Markdown, JSON, TOML, YAML, HTML, CSS, SQL). Feature-gated behind `--features tree-sitter`.
+- Language detection via filename extension, shebang line (`#!/usr/bin/env python3`), and syntax pattern matching.
+- Nested context support: Markdown files with fenced code blocks use per-section grammar (Python, Rust, etc. inside prose).
+- `node_kind_to_token_type()` mapping: tree-sitter node kinds → `CodeIdentifier`, `Keyword`, `Operator`, `StringLiteral`, `Comment`, `Number`, `Punctuation`, `Other`.
+- New `TokenType` variants: `Keyword`, `Comment` for richer token typing.
+- User-defined grammar loading via config for niche languages.
+- **Code Spelling Modes**: Voice-activated naming convention transformation — `snake_case`, `camelCase`, `PascalCase`, `kebab-case`, `SCREAMING_SNAKE`, `single_word`, and NATO spelling alphabet (`"alpha bravo charlie"` → `abc`).
+- Sticky and one-shot mode state machine with test coverage.
+- Integration with explain feature: explaining in pascal mode with code context produces `UserRepository`.
+- **Symbol Dictation**: 40+ spoken symbol commands with context-dependent resolution — `arrow` → `->` in C/C++, `=>` in JS/Rust; `colon colon` → `::` in Rust/C++; `bracket` → `[]` in code vs `<>` in HTML/XML.
+- User-configurable symbol overrides in `config.toml`.
+
+#### Phase 2B: Continuous Listening & Voice Activity Detection
+- **VoiceActivityDetector**: wraps `silero-vad-rust` for streaming speech boundary detection. Feature-gated behind `--features vad`.
+- Configurable thresholds, padding (default 500ms), and segment boundaries.
+- **EnergyVad**: RMS-energy fallback VAD for CPU-only / low-power environments.
+- **ContinuousCapture**: ring buffer with VAD-based segment extraction. Audio is continuously captured; only speech segments are sent to the ASR engine.
+- **BargeInBuffer**: accumulate audio during ASR processing, drain on completion. Prevents blocking while the user continues speaking mid-transcription.
+- 7 new tests — 109 total tests.
+
+#### Phase 2C: Advanced Vim-Style Navigation, Fuzzy Search, Visual Mode
+- **NavigationState**: vim-style token navigation with prev/next token, prev/next line, word forward/backward, paragraph jump, first/last token, first/last in line, and count-prefix support.
+- **VisualMode**: character-wise and line-wise visual selection with anchor tracking. Cut, copy, paste operations on the selected token range.
+- **FuzzySearcher**: phoneme-similarity-aware token search with `n`/`N` navigation through match list.
+- 12 new tests covering all navigation modes and edge cases.
+
+#### Phase 2H: Emoticon & Macro System
+- **EmoticonMacroManager**: 24 built-in emoticons/emoji with context filtering (prose, chat, code categories). Voice-activated triggers for common expressions: happy face, shrug, flip table, TODO/FIXME markers.
+- **Macro system**: user-defined snippets with variable interpolation (`$DATE`, `$TIME`, `$FILE`) and cursor positioning.
+- CLI management: add, list, remove, find macros.
+- 11 new tests covering all emoticon contexts, macro CRUD, and expansion interpolation.
+
+#### Phase 2I: Multi-GPU Workload Distribution
+- **MultiGpuManager**: auto-detects NVIDIA GPUs via `nvidia-smi`. Assigns ASR to GPU 0 (RTX 5090) and LLM inference to GPU 1 (RTX 4070 Ti). Falls back to single GPU when only one is available.
+- `GpuAssignment` config type with `asr_device` and `llm_device` fields.
+- Status string for status bar display: `ASR: RTX 5090 | LLM: RTX 4070 Ti`.
+- Blackwell (SM 12.0) GPU detection for future RTX 5090-optimized paths.
+- 6 new tests covering assignment, fallback, status, and edge cases.
+
+#### Phase 2J: In-Terminal Token Highlighting & Inline Predictions
+- **HighlightEngine**: ANSI escape-based token highlighting in the terminal body. Supports reverse video, underline, and bold styles. Saves and restores cursor position for non-intrusive injection.
+- **Inline predictions**: render prediction alternatives below the current line using cursor positioning (`╰─ 1: box  2: fog  3: sock`).
+- **VirtualBuffer**: tracks terminal content for cursor and scroll state.
+- 9 new tests covering highlighting, unhighlighting, predictions, visibility checks, and buffer management.
+
+#### Feature Flags
+- `tree-sitter` (Phase 2A): enables AST-aware tokenizer with 17 grammars
+- `vad` (Phase 2B): enables neural voice activity detection via silero-vad-rust
+
+### Changed
+- **Token types**: new `Keyword`, `Comment`, `StringLiteral`, `Number` variants add semantic richness to all tokenization output
+- **Cargo.toml**: added dependencies for tree-sitter grammars, silero-vad-rust, tracing
+- **Config**: added `[gpu]` section with `asr_device` and `llm_device` fields for multi-GPU assignment
+- **Status bar**: now renders multi-GPU assignment and VAD state
+
+### Documentation
+- Updated `PLAN.md` with Phase 2 checkboxes
+- Updated `RESEARCH.md` with tree-sitter, VAD crate evaluations
+- Updated `README.md` with Phase 2 feature list
+- Updated `ARCHITECTURE.md` with new module structure and data flow
+- Updated `BAZZITE.md` with VAD runtime dependencies
+
+### Testing
+- **109 total tests** (up from 68 in v0.1.0), all passing
+- Phase 2A: code spelling mode tests, symbol dictation tests, language detection tests
+- Phase 2B: VAD config tests, energy detection tests, buffer management tests
+- Phase 2C: navigation mode tests, visual selection tests, fuzzy search tests
+- Phase 2H: emoticon context tests, macro CRUD tests, interpolation tests
+- Phase 2I: multi-GPU assignment / fallback / status tests
+- Phase 2J: highlight engine tests, inline prediction tests, virtual buffer tests
+
+### Chores
+- Fixed unused import warning in `tree_sitter.rs`
+- Suppressed known `dead_code` warnings on feature-gated items
+
+[0.2.0]: https://github.com/spellcast/spellcast/releases/tag/v0.2.0
+
 ## [0.1.0] — 2026-07-26
 
 ### Added
