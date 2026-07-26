@@ -8,7 +8,7 @@
 //!
 //! Fallback: if the token has scrolled off-screen, show in the status line.
 
-use crate::tokenizer::{Token, TokenType};
+use crate::tokenizer::Token;
 
 /// ANSI escape sequences for terminal highlighting.
 pub mod ansi {
@@ -149,8 +149,6 @@ impl HighlightStyle {
 pub struct VirtualBuffer {
     /// Lines of text currently visible.
     lines: Vec<String>,
-    /// Maximum width (terminal columns).
-    width: usize,
     /// Current scroll offset (number of lines scrolled up).
     #[allow(dead_code)]
     scroll_offset: usize,
@@ -158,9 +156,9 @@ pub struct VirtualBuffer {
 
 impl VirtualBuffer {
     pub fn new(width: usize, height: usize) -> Self {
+        let _ = width; // Reserved for future use
         Self {
             lines: vec![String::new(); height],
-            width,
             scroll_offset: 0,
         }
     }
@@ -201,6 +199,7 @@ impl VirtualBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tokenizer::TokenType;
 
     #[test]
     fn test_highlight_style_sequences() {

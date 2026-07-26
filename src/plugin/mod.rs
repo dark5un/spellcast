@@ -104,15 +104,12 @@ impl SpellcastPlugin for CodeSymbolsPlugin {
 pub struct PluginManager {
     /// Loaded plugins (name → boxed trait object).
     plugins: HashMap<String, Box<dyn SpellcastPlugin>>,
-    /// Plugin directory path.
-    plugin_dir: String,
 }
 
 impl PluginManager {
-    pub fn new(plugin_dir: &str) -> Self {
+    pub fn new(_plugin_dir: &str) -> Self {
         Self {
             plugins: HashMap::new(),
-            plugin_dir: plugin_dir.to_string(),
         }
     }
 

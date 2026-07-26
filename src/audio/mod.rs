@@ -6,9 +6,11 @@
 //! Provides push-to-talk recording (start/stop) and returns
 //! 16kHz mono 16-bit PCM buffers suitable for Whisper.
 
-use crate::error::{SpellcastError, SpellcastResult};
+#[cfg(any(feature = "vad", test))]
+#[allow(dead_code)]
 pub mod vad;
 
+use crate::error::{SpellcastError, SpellcastResult};
 use std::sync::Arc;
 use std::sync::Mutex;
 

@@ -47,7 +47,7 @@ impl AudioFeedback {
         self.beep(784, 200); // G5
     }
 
-    fn beep(&self, freq: u32, duration_ms: u32) {
+    fn beep(&self, _freq: u32, duration_ms: u32) {
         // Write BEL character for terminal bell (simplest cross-platform approach)
         let _ = io::stdout().write_all(b"\x07");
         let _ = io::stdout().flush();
