@@ -48,18 +48,27 @@ struct Cli {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    // Initialize logging
-    if cli.verbose {
-        env_logger::Builder::from_env(
-            env_logger::Env::default().default_filter_or("spellcast=debug"),
-        )
-        .init();
-    } else {
-        env_logger::Builder::from_env(
-            env_logger::Env::default().default_filter_or("spellcast=info"),
-        )
-        .init();
+    // Initialize logging — write to file, NOT stderr, to avoid
+    // corrupting the alternate screen terminal display
+    let log_path = shellexpand::tilde("~/.config/spellcast/spellcast.log").to_string();
+    if let Some(parent) = std::path::Path::new(&log_path).parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
+    let log_level = if cli.verbose {
+        log::LevelFilter::Debug
+    } else {
+        log::LevelFilter::Info
+    };
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+        .expect("Failed to open log file");
+    env_logger::Builder::new()
+        .target(env_logger::Target::Pipe(Box::new(log_file)))
+        .filter_level(log_level)
+        .format_timestamp_secs()
+        .init();
 
     info!("Spellcast v{} starting up", env!("CARGO_PKG_VERSION"));
 
