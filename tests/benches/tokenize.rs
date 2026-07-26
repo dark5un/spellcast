@@ -7,7 +7,7 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use spellcast::tokenizer::{HeuristicTokenizer, Tokenizer};
 
 fn benchmark_heuristic_tokenizer(c: &mut Criterion) {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
 
     let prose_text =
         "hello world, this is a test of the tokenizer system. how are you doing today?";
@@ -29,7 +29,7 @@ fn benchmark_heuristic_tokenizer(c: &mut Criterion) {
 }
 
 fn benchmark_context_detection(c: &mut Criterion) {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
 
     c.bench_function("detect_context_code", |b| {
         b.iter(|| {

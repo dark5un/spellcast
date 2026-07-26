@@ -94,7 +94,7 @@ fn run_inner(
     asr_engine: Box<dyn AsrEngine>,
     audio_config: &SpcAudioConfig,
 ) -> SpellcastResult<()> {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
     let predictor = Predictor::new();
 
     // Wrap ASR engine in Arc for shared access from background threads

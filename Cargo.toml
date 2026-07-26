@@ -25,15 +25,8 @@ anyhow = "1"
 # Audio
 cpal = "0.18"
 
-# ASR
-whisper-rs = { version = "0.16", default-features = false, optional = true }
-
-# LLM (optional — only for explain feature)
-mistralrs = { version = "0.8", optional = true }
-
 # Terminal
 portable-pty = "0.9"
-ratatui = "0.30"
 crossterm = "0.29"
 
 # Database
@@ -42,36 +35,36 @@ rusqlite = { version = "0.40", features = ["bundled"] }
 # Phonetic
 rphonetic = "3.0"
 
-# VAD
-silero-vad-rust = { version = "6.2", optional = true }
-
 # Web
 ureq = "3"
 
-# Tree-sitter for AST-aware tokenization (optional)
-tree-sitter = { version = "0.26", optional = true }
-tree-sitter-rust = { version = "*", optional = true }
-tree-sitter-go = { version = "*", optional = true }
-tree-sitter-python = { version = "*", optional = true }
-tree-sitter-javascript = { version = "*", optional = true }
-tree-sitter-typescript = { version = "*", optional = true }
-tree-sitter-c = { version = "*", optional = true }
-tree-sitter-cpp = { version = "*", optional = true }
-tree-sitter-java = { version = "*", optional = true }
-tree-sitter-bash = { version = "*", optional = true }
-tree-sitter-markdown = { version = "*", optional = true }
-tree-sitter-json = { version = "*", optional = true }
-tree-sitter-toml = { version = "*", optional = true }
-tree-sitter-yaml = { version = "*", optional = true }
-tree-sitter-html = { version = "*", optional = true }
-tree-sitter-css = { version = "*", optional = true }
-tree-sitter-sql = { version = "*", optional = true }
+# Tree-sitter for AST-aware tokenization
+tree-sitter = "0.26"
+tree-sitter-rust = "*"
+tree-sitter-go = "*"
+tree-sitter-python = "*"
+tree-sitter-javascript = "*"
+tree-sitter-typescript = "*"
+tree-sitter-c = "*"
+tree-sitter-cpp = "*"
+tree-sitter-java = "*"
+tree-sitter-bash = "*"
+tree-sitter-json = "*"
+tree-sitter-yaml = "*"
+tree-sitter-html = "*"
+tree-sitter-css = "*"
 sha2 = "0.10"
 hex = "0.4"
 regex = "1"
 shellexpand = "3"
 ctrlc = "3.4"
 libc = "0.2"
+tree-sitter-toml-ng = "0.7.0"
+tree-sitter-sequel = "0.3.11"
+tree-sitter-md-025 = "0.5.6"
+silero = "0.6.0"
+mistralrs = "0.8.1"
+whisper-rs = "0.16.0"
 
 [dev-dependencies]
 tempfile = "3"
@@ -79,38 +72,9 @@ proptest = "1"
 criterion = { version = "0.6", features = ["html_reports"] }
 
 [features]
-default = ["cpu"]
-cuda = ["whisper-rs/cuda"]
-vulkan = ["whisper-rs/vulkan"]
-cpu = ["whisper-rs"]
-llm = ["mistralrs"]
-vad = ["silero-vad-rust"]
-tree-sitter = [
-    "dep:tree-sitter", "tree-sitter-rust", "tree-sitter-go", "tree-sitter-python",
-    "tree-sitter-javascript", "tree-sitter-typescript",
-    "tree-sitter-c", "tree-sitter-cpp", "tree-sitter-java",
-    "tree-sitter-bash", "tree-sitter-markdown", "tree-sitter-json",
-    "tree-sitter-toml", "tree-sitter-yaml", "tree-sitter-html",
-    "tree-sitter-css", "tree-sitter-sql",
-]
-
-# Enable ASR for tests even without CUDA
-test-asr = ["whisper-rs"]
-
-[profile.release]
-lto = true
-codegen-units = 1
-opt-level = 3
-
-[profile.bench]
-debug = true
-
-[[bench]]
-name = "asr_latency"
-path = "tests/benches/asr_latency.rs"
-harness = false
-
-[[bench]]
-name = "tokenize"
-path = "tests/benches/tokenize.rs"
-harness = false
+# GPU backends are compile-time capabilities (require SDK at build time)
+# The runtime choice of which backend to use is a config/CLI option
+cuda = []
+vulkan = []
+cpu = []
+default = ["cuda"]

@@ -8,7 +8,6 @@
 
 pub mod code_spelling;
 pub mod symbol_dictation;
-#[cfg(feature = "tree-sitter")]
 pub mod tree_sitter;
 
 use regex::Regex;
@@ -124,17 +123,17 @@ impl TokenStream {
 /// Tokenizer trait.
 pub trait Tokenizer: Send {
     /// Tokenize the given text, detecting context automatically.
-    fn tokenize(&self, text: &str) -> SpellcastResult<TokenStream>;
+    fn tokenize(&mut self, text: &str) -> SpellcastResult<TokenStream>;
 
     /// Tokenize with an explicit context hint.
     fn tokenize_with_context(
-        &self,
+        &mut self,
         text: &str,
         context: TokenContext,
     ) -> SpellcastResult<TokenStream>;
 
     /// Detect the context of the given text.
-    fn detect_context(&self, text: &str) -> TokenContext;
+    fn detect_context(&mut self, text: &str) -> TokenContext;
 }
 
 /// Heuristic tokenizer — uses regex-based pattern matching.
@@ -191,13 +190,13 @@ impl Default for HeuristicTokenizer {
 }
 
 impl Tokenizer for HeuristicTokenizer {
-    fn tokenize(&self, text: &str) -> SpellcastResult<TokenStream> {
+    fn tokenize(&mut self, text: &str) -> SpellcastResult<TokenStream> {
         let context = self.detect_context(text);
         self.tokenize_with_context(text, context)
     }
 
     fn tokenize_with_context(
-        &self,
+        &mut self,
         text: &str,
         _context: TokenContext,
     ) -> SpellcastResult<TokenStream> {
@@ -316,7 +315,7 @@ impl Tokenizer for HeuristicTokenizer {
         })
     }
 
-    fn detect_context(&self, text: &str) -> TokenContext {
+    fn detect_context(&mut self, text: &str) -> TokenContext {
         if text.is_empty() {
             return TokenContext::Prose;
         }
@@ -343,7 +342,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_prose() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let stream = t.tokenize("hello world").unwrap();
         assert_eq!(stream.len(), 3); // "hello", " ", "world"
         assert_eq!(stream.tokens[0].text, "hello");
@@ -353,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_code_identifier() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let stream = t
             .tokenize_with_context("fooBar", TokenContext::Code)
             .unwrap();
@@ -363,7 +362,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_operator() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let stream = t.tokenize("a -> b").unwrap();
         assert_eq!(stream.tokens[2].text, "->");
         assert_eq!(stream.tokens[2].token_type, TokenType::Operator);
@@ -371,7 +370,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_numbers() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let stream = t.tokenize("42 3.14").unwrap();
         assert_eq!(stream.tokens[0].text, "42");
         assert_eq!(stream.tokens[0].token_type, TokenType::Number);
@@ -381,21 +380,21 @@ mod tests {
 
     #[test]
     fn test_detect_code_context() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let ctx = t.detect_context("fn hello() { let x = 42; }");
         assert_eq!(ctx, TokenContext::Code);
     }
 
     #[test]
     fn test_detect_prose_context() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let ctx = t.detect_context("hello world, how are you?");
         assert_eq!(ctx, TokenContext::Prose);
     }
 
     #[test]
     fn test_detect_code_by_identifiers() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let ctx = t.detect_context("fooBar bazQux");
         assert_eq!(ctx, TokenContext::Code);
     }
@@ -458,7 +457,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_contraction() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let stream = t.tokenize("don't").unwrap();
         assert_eq!(stream.len(), 1);
         assert_eq!(stream.tokens[0].text, "don't");
@@ -466,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_tokenize_snake_case() {
-        let t = setup_tokenizer();
+        let mut t = setup_tokenizer();
         let stream = t
             .tokenize_with_context("my_variable_name", TokenContext::Code)
             .unwrap();
@@ -480,14 +479,14 @@ mod tests {
         /// Tokenization should never panic for any valid Unicode string.
                     #[test]
                     fn doesnt_panic_on_any_input(s in "\\PC*") {
-            let t = HeuristicTokenizer::new();
+            let mut t = HeuristicTokenizer::new();
             let _ = t.tokenize(&s);
         }
 
         /// Prose text should not be classified as code by context detection.
                     #[test]
                     fn prose_not_classified_as_code(s in "[a-zA-Z]+( [a-zA-Z]+)*") {
-                        let t = HeuristicTokenizer::new();
+                        let mut t = HeuristicTokenizer::new();
                         let ctx = t.detect_context(&s);
                         // Pure prose without code patterns should remain prose.
                         // Exclude: camelCase, snake_case, code keywords, operators.
@@ -503,7 +502,7 @@ mod tests {
         /// Token sequences for ASCII words should have at least one token per word.
         #[test]
         fn each_word_yields_at_least_one_token(words in proptest::collection::vec("[a-zA-Z]+", 1..10)) {
-            let t = HeuristicTokenizer::new();
+            let mut t = HeuristicTokenizer::new();
             let text = words.join(" ");
             let stream = t.tokenize(&text).unwrap();
 
@@ -519,7 +518,7 @@ mod tests {
         /// Whitespace-only strings should produce only whitespace tokens.
         #[test]
         fn whitespace_only(s in "[ ]+") {
-            let t = HeuristicTokenizer::new();
+            let mut t = HeuristicTokenizer::new();
             let stream = t.tokenize(&s).unwrap();
             for tok in &stream.tokens {
                 assert_eq!(tok.token_type, TokenType::Whitespace,

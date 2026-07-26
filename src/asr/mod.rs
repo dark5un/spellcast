@@ -7,7 +7,6 @@
 //! - `NoopAsr` — mock/stub for testing
 
 use crate::audio::AudioBuffer;
-#[cfg(feature = "cpu")]
 use crate::error::SpellcastError;
 use crate::error::SpellcastResult;
 
@@ -52,14 +51,12 @@ pub trait AsrEngine: Send + Sync {
 }
 
 /// Whisper ASR implementation using whisper.cpp via whisper-rs.
-#[cfg(feature = "cpu")]
 pub struct WhisperAsr {
     ctx: Option<whisper_rs::WhisperContext>,
     model_path: String,
     language: String,
 }
 
-#[cfg(feature = "cpu")]
 impl WhisperAsr {
     /// Create a new Whisper ASR instance.
     pub fn new(model_path: &str, _backend: &str) -> SpellcastResult<Self> {
@@ -78,7 +75,6 @@ impl WhisperAsr {
     }
 }
 
-#[cfg(feature = "cpu")]
 impl AsrEngine for WhisperAsr {
     fn load_model(&mut self, model_path: &str) -> SpellcastResult<()> {
         self.ctx = Some(Self::load_context(model_path)?);

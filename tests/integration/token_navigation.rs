@@ -8,7 +8,7 @@ use spellcast::predictor::Predictor;
 
 #[test]
 fn test_token_navigation_basic() {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
     let stream = tokenizer.tokenize("hello beautiful world").unwrap();
 
     assert_eq!(stream.len(), 5); // hello, whitespace, beautiful, whitespace, world
@@ -26,7 +26,7 @@ fn test_token_navigation_basic() {
 
 #[test]
 fn test_token_deletion() {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
     let mut stream = tokenizer.tokenize("delete this word").unwrap();
     let original_len = stream.len();
 
@@ -37,7 +37,7 @@ fn test_token_deletion() {
 
 #[test]
 fn test_token_replacement() {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
     let mut stream = tokenizer.tokenize("hello world").unwrap();
 
     let replacement = Token {
@@ -84,7 +84,7 @@ fn test_predictor_basic_integration() {
 
 #[test]
 fn test_heuristic_tokenizer_code_detection() {
-    let tokenizer = HeuristicTokenizer::new();
+    let mut tokenizer = HeuristicTokenizer::new();
 
     // Code snippets should be detected as code
     let code = "fn foo() -> Result<()> { Ok(()) }";

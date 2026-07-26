@@ -152,7 +152,6 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize ASR engine — suppress whisper.cpp stdout/stderr output
     // so it doesn't corrupt the terminal before alternate screen is entered
-    #[cfg(feature = "cpu")]
     let asr_engine: Box<dyn spellcast::asr::AsrEngine> = {
         use std::os::fd::AsRawFd;
         let saved_stdout = unsafe { libc::dup(1) };
@@ -181,8 +180,6 @@ fn main() -> anyhow::Result<()> {
 
         Box::new(asr)
     };
-    #[cfg(not(feature = "cpu"))]
-    let asr_engine: Box<dyn spellcast::asr::AsrEngine> = Box::new(spellcast::asr::NoopAsr::new());
 
     // Run the main terminal loop
     spellcast::terminal::run_terminal_loop(

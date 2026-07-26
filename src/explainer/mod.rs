@@ -121,7 +121,6 @@ impl Explainer {
         }
 
         // Step 2: LLM fallback
-        #[cfg(feature = "llm")]
         if self.config.llm_available {
             match self.query_llm(&explanation, context) {
                 Ok(result) => {
@@ -158,14 +157,13 @@ impl Explainer {
     }
 
     /// Query a local LLM via web-like API (stub for MVP).
-    #[cfg(feature = "llm")]
     fn query_llm(&self, explanation: &str, context: &str) -> SpellcastResult<ExplainResult> {
         use mistralrs::{IsqBits, ModelBuilder, TextMessageRole, TextMessages};
 
         let rt = tokio::runtime::Runtime::new()
             .map_err(|e| SpellcastError::Llm(format!("Failed to create runtime: {e}")))?;
 
-        let result = rt.block_on(async {
+        rt.block_on(async {
             let model = ModelBuilder::new("Qwen/Qwen3-4B")
                 .with_auto_isq(IsqBits::Four)
                 .build()
@@ -198,9 +196,7 @@ impl Explainer {
                 source: ExplainSource::Llm,
                 confidence: 0.7,
             })
-        });
-
-        result
+        })
     }
 
     /// Web search fallback (stub for MVP).

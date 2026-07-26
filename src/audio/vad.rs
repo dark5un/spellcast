@@ -2,9 +2,11 @@
 
 //! Voice Activity Detection (VAD) using Silero VAD.
 //!
-//! Wraps the silero-vad-rust crate for speech/non-speech segmentation.
+//! Wraps the `silero` crate for speech/non-speech segmentation.
 //! Supports both offline (batch) and streaming chunk-based detection.
 //! VAD support, continuous capture, and barge-in.
+
+use silero::{SpeechOptions, SpeechSegment, StreamState};
 
 /// Configuration for the VAD engine.
 #[derive(Debug, Clone)]
@@ -41,48 +43,53 @@ impl Default for VadConfig {
 
 /// A detected speech segment (timestamp range in samples).
 #[derive(Debug, Clone)]
-pub struct SpeechSegment {
+pub struct SpeechSegmentResult {
     pub start_sample: usize,
     pub end_sample: usize,
 }
 
-/// VAD engine wrapping Silero VAD.
+/// VAD engine wrapping Silero VAD via the `silero` crate.
 pub struct VoiceActivityDetector {
     config: VadConfig,
-    #[cfg(feature = "vad")]
-    model: Option<silero_vad_rust::silero_vad::model::SileroVadModel>,
-    #[cfg(not(feature = "vad"))]
-    _model: (),
+    session: Option<silero::Session>,
 }
 
 impl VoiceActivityDetector {
     /// Create a new VAD instance. Loads the ONNX model on first use.
     pub fn new(config: VadConfig) -> Self {
-        #[cfg(feature = "vad")]
-        let model = Self::load_model();
-        #[cfg(not(feature = "vad"))]
-        let _model = ();
-
+        let session = Self::load_session();
         Self {
             config,
-            #[cfg(feature = "vad")]
-            model: model.ok(),
-            #[cfg(not(feature = "vad"))]
-            _model,
+            session: session.ok(),
         }
     }
 
-    /// Load the Silero VAD ONNX model.
-    #[cfg(feature = "vad")]
-    fn load_model() -> Result<silero_vad_rust::silero_vad::model::SileroVadModel, anyhow::Error> {
-        silero_vad_rust::load_silero_vad()
+    /// Load the Silero VAD ONNX model using the bundled model.
+    fn load_session() -> Result<silero::Session, silero::Error> {
+        silero::Session::bundled()
+    }
+
+    /// Build SpeechOptions from our config.
+    fn speech_options(&self) -> SpeechOptions {
+        let mut opts = SpeechOptions::default();
+        // The silero crate's SpeechOptions has start_threshold which maps to our threshold
+        opts = opts.with_start_threshold(self.config.threshold);
+        opts = opts.with_min_silence_duration(std::time::Duration::from_millis(
+            self.config.min_silence_ms as u64,
+        ));
+        opts = opts.with_min_speech_duration(std::time::Duration::from_millis(
+            self.config.min_speech_ms as u64,
+        ));
+        opts = opts.with_speech_pad(std::time::Duration::from_millis(
+            self.config.pre_padding_ms as u64,
+        ));
+        opts
     }
 
     /// Process a single chunk of audio and return the speech probability.
     /// Audio must be 16kHz mono f32 samples.
-    #[cfg(feature = "vad")]
     pub fn forward_chunk(&mut self, chunk: &[f32]) -> Option<f32> {
-        let model = self.model.as_mut()?;
+        let session = self.session.as_mut()?;
         let chunk_size = self.config.chunk_size;
 
         // Pad or truncate to expected chunk size
@@ -95,123 +102,45 @@ impl VoiceActivityDetector {
             tmp
         };
 
-        let probs = model.forward_chunk(&padded, self.config.sample_rate).ok()?;
-        Some(probs[[0, 0]])
-    }
-
-    /// Stub when VAD feature is disabled.
-    #[cfg(not(feature = "vad"))]
-    pub fn forward_chunk(&mut self, _chunk: &[f32]) -> Option<f32> {
-        None
+        let sample_rate = silero::SampleRate::Rate16k;
+        let mut stream = StreamState::new(sample_rate);
+        let probs = session.process_stream(&mut stream, &padded).ok()?;
+        probs.first().copied()
     }
 
     /// Detect speech segments in a full audio buffer (offline).
-    #[cfg(feature = "vad")]
-    pub fn detect_segments(&mut self, audio: &[f32]) -> Vec<SpeechSegment> {
-        let model = match self.model.as_mut() {
-            Some(m) => m,
+    pub fn detect_segments(&mut self, audio: &[f32]) -> Vec<SpeechSegmentResult> {
+        let options = self.speech_options();
+        let session = match self.session.as_mut() {
+            Some(s) => s,
             None => return vec![],
         };
-        model.reset_states();
-
-        let mut segments = Vec::new();
-        let chunk_size = self.config.chunk_size;
-        let mut in_speech = false;
-        let mut segment_start = 0;
-        let mut silence_frames = 0u32;
-        let silence_threshold =
-            self.config.min_silence_ms * self.config.sample_rate / 1000 / chunk_size as u32;
-        let min_speech_frames =
-            self.config.min_speech_ms * self.config.sample_rate / 1000 / chunk_size as u32;
-
-        for (i, chunk) in audio.chunks(chunk_size).enumerate() {
-            let padded = if chunk.len() == chunk_size {
-                chunk.to_vec()
-            } else {
-                let mut tmp = vec![0.0f32; chunk_size];
-                tmp[..chunk.len()].copy_from_slice(chunk);
-                tmp
-            };
-
-            let prob = model.forward_chunk(&padded, self.config.sample_rate).ok();
-
-            let is_speech = prob
-                .map(|p| p[[0, 0]] >= self.config.threshold)
-                .unwrap_or(false);
-
-            if is_speech && !in_speech {
-                in_speech = true;
-                silence_frames = 0;
-                // Apply pre-padding
-                let pre_pad =
-                    (self.config.pre_padding_ms * self.config.sample_rate / 1000) as usize;
-                let pre_padded = if i * chunk_size > pre_pad {
-                    i * chunk_size - pre_pad
-                } else {
-                    0
-                };
-                segment_start = pre_padded;
-            } else if !is_speech && in_speech {
-                silence_frames += 1;
-                if silence_frames >= silence_threshold {
-                    let frames = i - silence_frames as usize;
-                    let end = (frames + 1) * chunk_size
-                        + (self.config.post_padding_ms * self.config.sample_rate / 1000) as usize;
-                    let end = end.min(audio.len());
-                    if end > segment_start
-                        && (end - segment_start) > (min_speech_frames * chunk_size) as usize
-                    {
-                        segments.push(SpeechSegment {
-                            start_sample: segment_start,
-                            end_sample: end,
-                        });
-                    }
-                    in_speech = false;
-                    silence_frames = 0;
-                }
-            } else if is_speech {
-                silence_frames = 0;
+        let segments = match silero::detect_speech(session, audio, options) {
+            Ok(segs) => segs,
+            Err(e) => {
+                log::warn!("VAD detect_speech failed: {e}");
+                return vec![];
             }
-        }
-
-        // Flush any residual speech segment
-        if in_speech {
-            let end = audio.len();
-            if end > segment_start {
-                segments.push(SpeechSegment {
-                    start_sample: segment_start,
-                    end_sample: end,
-                });
-            }
-        }
+        };
 
         segments
-    }
-
-    /// Stub when VAD feature is disabled.
-    #[cfg(not(feature = "vad"))]
-    pub fn detect_segments(&mut self, _audio: &[f32]) -> Vec<SpeechSegment> {
-        vec![]
+            .into_iter()
+            .map(|seg: SpeechSegment| SpeechSegmentResult {
+                start_sample: seg.start_sample() as usize,
+                end_sample: seg.end_sample() as usize,
+            })
+            .collect()
     }
 
     /// Reset the VAD internal state (for streaming mode between segments).
     pub fn reset(&mut self) {
-        #[cfg(feature = "vad")]
-        if let Some(model) = &mut self.model {
-            model.reset_states();
-        }
+        // Session reset is handled per-stream in the new API;
+        // each detect_segments call creates a fresh StreamState internally.
     }
 
     /// Check if the VAD engine is loaded and ready.
     pub fn is_ready(&self) -> bool {
-        #[cfg(feature = "vad")]
-        {
-            self.model.is_some()
-        }
-        #[cfg(not(feature = "vad"))]
-        {
-            false
-        }
+        self.session.is_some()
     }
 }
 
@@ -233,7 +162,7 @@ impl EnergyVad {
     }
 
     /// Detect speech segments using RMS energy.
-    pub fn detect_segments(&self, audio: &[f32]) -> Vec<SpeechSegment> {
+    pub fn detect_segments(&self, audio: &[f32]) -> Vec<SpeechSegmentResult> {
         let mut segments = Vec::new();
         let mut in_speech = false;
         let mut segment_start = 0;
@@ -247,7 +176,7 @@ impl EnergyVad {
                 segment_start = i * self.chunk_size;
             } else if !is_speech && in_speech {
                 in_speech = false;
-                segments.push(SpeechSegment {
+                segments.push(SpeechSegmentResult {
                     start_sample: segment_start,
                     end_sample: i * self.chunk_size,
                 });
@@ -255,7 +184,7 @@ impl EnergyVad {
         }
 
         if in_speech {
-            segments.push(SpeechSegment {
+            segments.push(SpeechSegmentResult {
                 start_sample: segment_start,
                 end_sample: audio.len(),
             });
@@ -365,8 +294,8 @@ mod tests {
     #[test]
     fn test_vad_creates_without_panic() {
         let vad = VoiceActivityDetector::new(VadConfig::default());
-        // Without VAD feature, is_ready should be false
-        assert!(!vad.is_ready());
+        // The bundled model should load successfully
+        assert!(vad.is_ready());
     }
 
     #[test]

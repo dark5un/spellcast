@@ -6,7 +6,6 @@
 //! Provides push-to-talk recording (start/stop) and returns
 //! 16kHz mono 16-bit PCM buffers suitable for Whisper.
 
-#[cfg(any(feature = "vad", test))]
 #[allow(dead_code)]
 pub mod vad;
 
@@ -222,10 +221,14 @@ fn resample_linear(input: &[i16], from_rate: u32, to_rate: u32) -> Vec<i16> {
 }
 
 /// Mock audio capture for testing.
-#[cfg(any(test, feature = "test-asr"))]
 pub struct MockAudioCapture;
 
-#[cfg(any(test, feature = "test-asr"))]
+impl Default for MockAudioCapture {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockAudioCapture {
     pub fn new() -> Self {
         Self
