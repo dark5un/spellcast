@@ -48,7 +48,10 @@ impl MultiGpuManager {
 
         // Try nvidia-smi for GPU detection
         let output = std::process::Command::new("nvidia-smi")
-            .args(["--query-gpu=index,name,memory.total,compute_cap", "--format=csv,noheader"])
+            .args([
+                "--query-gpu=index,name,memory.total,compute_cap",
+                "--format=csv,noheader",
+            ])
             .output();
 
         if let Ok(output) = output {
@@ -82,9 +85,9 @@ impl MultiGpuManager {
 
     /// Get the LLM device index.
     pub fn llm_device(&self) -> usize {
-        self.assignment.llm_device.unwrap_or_else(|| {
-            if self.devices.len() > 1 { 1 } else { 0 }
-        })
+        self.assignment
+            .llm_device
+            .unwrap_or(if self.devices.len() > 1 { 1 } else { 0 })
     }
 
     /// Get the device name at a given index.
@@ -139,7 +142,6 @@ mod tests {
         let mgr = MultiGpuManager::detect(assignment);
         // Should not panic — GPU may or may not be available
         _ = mgr.gpu_count();
-        
     }
 
     #[test]

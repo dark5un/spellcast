@@ -41,94 +41,349 @@ impl SymbolDictionary {
         let mut entries = HashMap::new();
 
         // Parentheses
-        entries.insert("open paren".to_string(), SymbolEntry { default: "(", overrides: vec![] });
-        entries.insert("close paren".to_string(), SymbolEntry { default: ")", overrides: vec![] });
-        entries.insert("left paren".to_string(), SymbolEntry { default: "(", overrides: vec![] });
-        entries.insert("right paren".to_string(), SymbolEntry { default: ")", overrides: vec![] });
+        entries.insert(
+            "open paren".to_string(),
+            SymbolEntry {
+                default: "(",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "close paren".to_string(),
+            SymbolEntry {
+                default: ")",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "left paren".to_string(),
+            SymbolEntry {
+                default: "(",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "right paren".to_string(),
+            SymbolEntry {
+                default: ")",
+                overrides: vec![],
+            },
+        );
 
         // Brackets
-        entries.insert("open bracket".to_string(), SymbolEntry {
-            default: "[",
-            overrides: vec![("html", "&lt;"), ("xml", "&lt;")],
-        });
-        entries.insert("close bracket".to_string(), SymbolEntry {
-            default: "]",
-            overrides: vec![("html", "&gt;"), ("xml", "&gt;")],
-        });
-        entries.insert("left bracket".to_string(), SymbolEntry {
-            default: "[",
-            overrides: vec![("html", "&lt;"), ("xml", "&lt;")],
-        });
-        entries.insert("right bracket".to_string(), SymbolEntry {
-            default: "]",
-            overrides: vec![("html", "&gt;"), ("xml", "&gt;")],
-        });
+        entries.insert(
+            "open bracket".to_string(),
+            SymbolEntry {
+                default: "[",
+                overrides: vec![("html", "&lt;"), ("xml", "&lt;")],
+            },
+        );
+        entries.insert(
+            "close bracket".to_string(),
+            SymbolEntry {
+                default: "]",
+                overrides: vec![("html", "&gt;"), ("xml", "&gt;")],
+            },
+        );
+        entries.insert(
+            "left bracket".to_string(),
+            SymbolEntry {
+                default: "[",
+                overrides: vec![("html", "&lt;"), ("xml", "&lt;")],
+            },
+        );
+        entries.insert(
+            "right bracket".to_string(),
+            SymbolEntry {
+                default: "]",
+                overrides: vec![("html", "&gt;"), ("xml", "&gt;")],
+            },
+        );
 
         // Braces
-        entries.insert("open brace".to_string(), SymbolEntry { default: "{", overrides: vec![] });
-        entries.insert("close brace".to_string(), SymbolEntry { default: "}", overrides: vec![] });
-        entries.insert("left brace".to_string(), SymbolEntry { default: "{", overrides: vec![] });
-        entries.insert("right brace".to_string(), SymbolEntry { default: "}", overrides: vec![] });
+        entries.insert(
+            "open brace".to_string(),
+            SymbolEntry {
+                default: "{",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "close brace".to_string(),
+            SymbolEntry {
+                default: "}",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "left brace".to_string(),
+            SymbolEntry {
+                default: "{",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "right brace".to_string(),
+            SymbolEntry {
+                default: "}",
+                overrides: vec![],
+            },
+        );
 
         // Operators
-        entries.insert("equals".to_string(), SymbolEntry { default: "=", overrides: vec![] });
-        entries.insert("double equals".to_string(), SymbolEntry { default: "==", overrides: vec![] });
-        entries.insert("arrow".to_string(), SymbolEntry {
-            default: "->",
-            overrides: vec![("javascript", "=>"), ("typescript", "=>"), ("rust", "=>")],
-        });
-        entries.insert("pipe".to_string(), SymbolEntry { default: "|", overrides: vec![] });
-        entries.insert("double pipe".to_string(), SymbolEntry { default: "||", overrides: vec![] });
-        entries.insert("ampersand".to_string(), SymbolEntry { default: "&", overrides: vec![] });
-        entries.insert("double ampersand".to_string(), SymbolEntry { default: "&&", overrides: vec![] });
-        entries.insert("bang".to_string(), SymbolEntry { default: "!", overrides: vec![] });
-        entries.insert("bang equals".to_string(), SymbolEntry { default: "!=", overrides: vec![] });
+        entries.insert(
+            "equals".to_string(),
+            SymbolEntry {
+                default: "=",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "double equals".to_string(),
+            SymbolEntry {
+                default: "==",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "arrow".to_string(),
+            SymbolEntry {
+                default: "->",
+                overrides: vec![("javascript", "=>"), ("typescript", "=>"), ("rust", "=>")],
+            },
+        );
+        entries.insert(
+            "pipe".to_string(),
+            SymbolEntry {
+                default: "|",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "double pipe".to_string(),
+            SymbolEntry {
+                default: "||",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "ampersand".to_string(),
+            SymbolEntry {
+                default: "&",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "double ampersand".to_string(),
+            SymbolEntry {
+                default: "&&",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "bang".to_string(),
+            SymbolEntry {
+                default: "!",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "bang equals".to_string(),
+            SymbolEntry {
+                default: "!=",
+                overrides: vec![],
+            },
+        );
 
         // Punctuation
-        entries.insert("semicolon".to_string(), SymbolEntry { default: ";", overrides: vec![] });
-        entries.insert("colon".to_string(), SymbolEntry { default: ":", overrides: vec![] });
-        entries.insert("colon colon".to_string(), SymbolEntry { default: "::", overrides: vec![] });
-        entries.insert("question mark".to_string(), SymbolEntry { default: "?", overrides: vec![] });
-        entries.insert("dot".to_string(), SymbolEntry { default: ".", overrides: vec![] });
-        entries.insert("period".to_string(), SymbolEntry { default: ".", overrides: vec![] });
+        entries.insert(
+            "semicolon".to_string(),
+            SymbolEntry {
+                default: ";",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "colon".to_string(),
+            SymbolEntry {
+                default: ":",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "colon colon".to_string(),
+            SymbolEntry {
+                default: "::",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "question mark".to_string(),
+            SymbolEntry {
+                default: "?",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "dot".to_string(),
+            SymbolEntry {
+                default: ".",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "period".to_string(),
+            SymbolEntry {
+                default: ".",
+                overrides: vec![],
+            },
+        );
 
         // Slashes
-        entries.insert("slash".to_string(), SymbolEntry { default: "/", overrides: vec![] });
-        entries.insert("forward slash".to_string(), SymbolEntry { default: "/", overrides: vec![] });
-        entries.insert("backslash".to_string(), SymbolEntry { default: "\\", overrides: vec![] });
+        entries.insert(
+            "slash".to_string(),
+            SymbolEntry {
+                default: "/",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "forward slash".to_string(),
+            SymbolEntry {
+                default: "/",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "backslash".to_string(),
+            SymbolEntry {
+                default: "\\",
+                overrides: vec![],
+            },
+        );
 
         // Other
-        entries.insert("star".to_string(), SymbolEntry { default: "*", overrides: vec![] });
-        entries.insert("asterisk".to_string(), SymbolEntry { default: "*", overrides: vec![] });
-        entries.insert("hash".to_string(), SymbolEntry { default: "#", overrides: vec![] });
-        entries.insert("pound".to_string(), SymbolEntry { default: "#", overrides: vec![] });
-        entries.insert("at sign".to_string(), SymbolEntry { default: "@", overrides: vec![] });
-        entries.insert("tilde".to_string(), SymbolEntry { default: "~", overrides: vec![] });
-        entries.insert("backtick".to_string(), SymbolEntry { default: "`", overrides: vec![] });
-        entries.insert("dollar".to_string(), SymbolEntry { default: "$", overrides: vec![] });
-        entries.insert("percent".to_string(), SymbolEntry { default: "%", overrides: vec![] });
-        entries.insert("caret".to_string(), SymbolEntry { default: "^", overrides: vec![] });
-        entries.insert("underscore".to_string(), SymbolEntry { default: "_", overrides: vec![] });
-        entries.insert("plus".to_string(), SymbolEntry { default: "+", overrides: vec![] });
-        entries.insert("minus".to_string(), SymbolEntry { default: "-", overrides: vec![] });
-        entries.insert("less than".to_string(), SymbolEntry {
-            default: "<",
-            overrides: vec![("html", "&lt;"), ("xml", "&lt;")],
-        });
-        entries.insert("greater than".to_string(), SymbolEntry {
-            default: ">",
-            overrides: vec![("html", "&gt;"), ("xml", "&gt;")],
-        });
+        entries.insert(
+            "star".to_string(),
+            SymbolEntry {
+                default: "*",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "asterisk".to_string(),
+            SymbolEntry {
+                default: "*",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "hash".to_string(),
+            SymbolEntry {
+                default: "#",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "pound".to_string(),
+            SymbolEntry {
+                default: "#",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "at sign".to_string(),
+            SymbolEntry {
+                default: "@",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "tilde".to_string(),
+            SymbolEntry {
+                default: "~",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "backtick".to_string(),
+            SymbolEntry {
+                default: "`",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "dollar".to_string(),
+            SymbolEntry {
+                default: "$",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "percent".to_string(),
+            SymbolEntry {
+                default: "%",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "caret".to_string(),
+            SymbolEntry {
+                default: "^",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "underscore".to_string(),
+            SymbolEntry {
+                default: "_",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "plus".to_string(),
+            SymbolEntry {
+                default: "+",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "minus".to_string(),
+            SymbolEntry {
+                default: "-",
+                overrides: vec![],
+            },
+        );
+        entries.insert(
+            "less than".to_string(),
+            SymbolEntry {
+                default: "<",
+                overrides: vec![("html", "&lt;"), ("xml", "&lt;")],
+            },
+        );
+        entries.insert(
+            "greater than".to_string(),
+            SymbolEntry {
+                default: ">",
+                overrides: vec![("html", "&gt;"), ("xml", "&gt;")],
+            },
+        );
 
         // Code-specific compound symbols
-        entries.insert("dot dot".to_string(), SymbolEntry {
-            default: "..",
-            overrides: vec![("rust", "..="), ("javascript", "...")],
-        });
-        entries.insert("dot dot dot".to_string(), SymbolEntry {
-            default: "...",
-            overrides: vec![("rust", "..=")],
-        });
+        entries.insert(
+            "dot dot".to_string(),
+            SymbolEntry {
+                default: "..",
+                overrides: vec![("rust", "..="), ("javascript", "...")],
+            },
+        );
+        entries.insert(
+            "dot dot dot".to_string(),
+            SymbolEntry {
+                default: "...",
+                overrides: vec![("rust", "..=")],
+            },
+        );
 
         Self { entries }
     }
@@ -136,7 +391,9 @@ impl SymbolDictionary {
     /// Look up a spoken phrase and return its symbol, resolved for the given context.
     pub fn lookup(&self, phrase: &str, context: &str) -> Option<&'static str> {
         let phrase = phrase.trim().to_lowercase();
-        self.entries.get(&phrase).map(|entry| entry.resolve(context))
+        self.entries
+            .get(&phrase)
+            .map(|entry| entry.resolve(context))
     }
 
     /// Check if a phrase is a known symbol command.

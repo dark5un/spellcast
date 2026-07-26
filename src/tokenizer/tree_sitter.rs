@@ -17,24 +17,24 @@ use crate::tokenizer::{Token, TokenContext, TokenStream, TokenType, Tokenizer};
 /// Maps a cursor to a TokenType based on the node's kind.
 fn node_kind_to_token_type(kind: &str) -> TokenType {
     match kind {
-        "identifier" | "type_identifier" | "field_identifier"
-        | "shorthand_property_identifier" | "shorthand_property_identifier_pattern" => {
-            TokenType::CodeIdentifier
-        }
-        "if" | "else" | "for" | "while" | "return" | "let" | "const" | "var"
-        | "fn" | "function" | "class" | "struct" | "enum" | "trait" | "impl"
-        | "pub" | "use" | "mod" | "import" | "from" | "def" | "lambda"
-        | "match" | "loop" | "break" | "continue" | "true" | "false" | "null"
-        | "undefined" | "None" | "Some" | "Ok" | "Err" | "as" | "in" | "where"
-        | "type" | "let mut" | "if let" | "while let" | "for" | "in" | "match" => {
+        "identifier"
+        | "type_identifier"
+        | "field_identifier"
+        | "shorthand_property_identifier"
+        | "shorthand_property_identifier_pattern" => TokenType::CodeIdentifier,
+        "if" | "else" | "for" | "while" | "return" | "let" | "const" | "var" | "fn"
+        | "function" | "class" | "struct" | "enum" | "trait" | "impl" | "pub" | "use" | "mod"
+        | "import" | "from" | "def" | "lambda" | "match" | "loop" | "break" | "continue"
+        | "true" | "false" | "null" | "undefined" | "None" | "Some" | "Ok" | "Err" | "as"
+        | "in" | "where" | "type" | "let mut" | "if let" | "while let" | "for" | "in" | "match" => {
             TokenType::Keyword
         }
         "string_literal" | "string" | "template_string" | "text" => TokenType::StringLiteral,
         "comment" | "line_comment" | "block_comment" => TokenType::Comment,
         "number_literal" | "number" | "integer_literal" | "float_literal" => TokenType::Number,
-        "->" | "=>" | "::" | "+" | "-" | "*" | "/" | "%" | "=" | "==" | "!="
-        | "<" | ">" | "<=" | ">=" | "&&" | "||" | "!" | "&" | "|" | "^" | "~"
-        | "<<" | ">>" | "+=" | "-=" | "*=" | "/=" | "%=" => TokenType::Operator,
+        "->" | "=>" | "::" | "+" | "-" | "*" | "/" | "%" | "=" | "==" | "!=" | "<" | ">" | "<="
+        | ">=" | "&&" | "||" | "!" | "&" | "|" | "^" | "~" | "<<" | ">>" | "+=" | "-=" | "*="
+        | "/=" | "%=" => TokenType::Operator,
         "(" | ")" | "[" | "]" | "{" | "}" => TokenType::Punctuation,
         "." | "," | ";" | ":" | "#" | "@" | "$" | "?" => TokenType::Punctuation,
         _ => {
@@ -188,11 +188,12 @@ impl TreeSitterTokenizer {
         for g in &grammars {
             let mut parser = Parser::new();
             let lang = (g.language)();
-            parser
-                .set_language(&lang)
-                .map_err(|e| crate::error::SpellcastError::Tokenizer(format!(
-                    "Failed to set language '{}': {e}", g.name
-                )))?;
+            parser.set_language(&lang).map_err(|e| {
+                crate::error::SpellcastError::Tokenizer(format!(
+                    "Failed to set language '{}': {e}",
+                    g.name
+                ))
+            })?;
             parsers.insert(g.name, parser);
         }
 
@@ -215,11 +216,12 @@ impl TreeSitterTokenizer {
         for g in &grammars {
             let mut parser = Parser::new();
             let lang = (g.language)();
-            parser
-                .set_language(&lang)
-                .map_err(|e| crate::error::SpellcastError::Tokenizer(format!(
-                    "Failed to set language '{}': {e}", g.name
-                )))?;
+            parser.set_language(&lang).map_err(|e| {
+                crate::error::SpellcastError::Tokenizer(format!(
+                    "Failed to set language '{}': {e}",
+                    g.name
+                ))
+            })?;
             parsers.insert(g.name, parser);
         }
 
@@ -309,9 +311,7 @@ impl TreeSitterTokenizer {
             // to a useful type, then recurse for detail.
             let is_meaningful = matches!(
                 token_type,
-                TokenType::Comment
-                    | TokenType::StringLiteral
-                    | TokenType::Keyword
+                TokenType::Comment | TokenType::StringLiteral | TokenType::Keyword
             );
             if is_meaningful && token_type != TokenType::Other {
                 // Emit the whole comment/string/keyword as one token
@@ -334,8 +334,8 @@ impl TreeSitterTokenizer {
     /// Parse a code block within a markdown file or other nested context.
     pub fn parse_code_block(&self, code: &str, language: &str) -> SpellcastResult<TokenStream> {
         let context = match language {
-            "python" | "rust" | "go" | "javascript" | "typescript" | "c" | "cpp"
-            | "java" | "bash" | "sql" | "html" | "css" => TokenContext::Code,
+            "python" | "rust" | "go" | "javascript" | "typescript" | "c" | "cpp" | "java"
+            | "bash" | "sql" | "html" | "css" => TokenContext::Code,
             _ => TokenContext::Prose,
         };
 
@@ -398,7 +398,9 @@ impl Tokenizer for TreeSitterTokenizer {
                         } else {
                             self.node_to_tokens(root, text, &mut tokens);
                         }
-                        tokens.retain(|t| t.token_type != TokenType::Whitespace || !t.text.trim().is_empty());
+                        tokens.retain(|t| {
+                            t.token_type != TokenType::Whitespace || !t.text.trim().is_empty()
+                        });
                         return Ok(TokenStream { tokens, context });
                     }
                 }
@@ -413,7 +415,11 @@ impl Tokenizer for TreeSitterTokenizer {
         })
     }
 
-    fn tokenize_with_context(&self, text: &str, context: TokenContext) -> SpellcastResult<TokenStream> {
+    fn tokenize_with_context(
+        &self,
+        text: &str,
+        context: TokenContext,
+    ) -> SpellcastResult<TokenStream> {
         // When context is explicitly provided, still try the matched grammar
         // but use the given context for the token stream
         let mut stream = self.tokenize(text)?;
@@ -497,7 +503,7 @@ impl TreeSitterTokenizer {
     }
 
     /// Fenced code block info string cursor for markdown tokenization.
-fn _get_fence_info(node: Node, text: &str) -> Option<&str> {
+    fn _get_fence_info(node: Node, text: &str) -> Option<&str> {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == "info_string" {
@@ -581,19 +587,13 @@ mod tests {
     #[test]
     fn test_detect_filename_rust() {
         let t = setup();
-        assert_eq!(
-            t.detect_language_from_filename("main.rs"),
-            Some("Rust")
-        );
+        assert_eq!(t.detect_language_from_filename("main.rs"), Some("Rust"));
     }
 
     #[test]
     fn test_detect_filename_python() {
         let t = setup();
-        assert_eq!(
-            t.detect_language_from_filename("script.py"),
-            Some("Python")
-        );
+        assert_eq!(t.detect_language_from_filename("script.py"), Some("Python"));
     }
 
     #[test]
@@ -614,10 +614,7 @@ mod tests {
     #[test]
     fn test_detect_shebang_bash() {
         let t = setup();
-        assert_eq!(
-            t.detect_language_from_shebang("#!/bin/bash"),
-            Some("Bash")
-        );
+        assert_eq!(t.detect_language_from_shebang("#!/bin/bash"), Some("Bash"));
     }
 
     #[test]
@@ -681,14 +678,23 @@ mod tests {
             .collect();
         // Should have => and + operators
         let op_texts: Vec<&str> = operators.iter().map(|t| t.text.as_str()).collect();
-        assert!(op_texts.contains(&"=>") || op_texts.contains(&"+"), "JS arrow should produce operators");
+        assert!(
+            op_texts.contains(&"=>") || op_texts.contains(&"+"),
+            "JS arrow should produce operators"
+        );
     }
 
     #[test]
     fn test_node_kind_mapping() {
-        assert_eq!(node_kind_to_token_type("identifier"), TokenType::CodeIdentifier);
+        assert_eq!(
+            node_kind_to_token_type("identifier"),
+            TokenType::CodeIdentifier
+        );
         assert_eq!(node_kind_to_token_type("fn"), TokenType::Keyword);
-        assert_eq!(node_kind_to_token_type("string_literal"), TokenType::StringLiteral);
+        assert_eq!(
+            node_kind_to_token_type("string_literal"),
+            TokenType::StringLiteral
+        );
         assert_eq!(node_kind_to_token_type("comment"), TokenType::Comment);
         assert_eq!(node_kind_to_token_type("->"), TokenType::Operator);
         assert_eq!(node_kind_to_token_type("("), TokenType::Punctuation);

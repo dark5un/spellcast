@@ -127,8 +127,11 @@ pub trait Tokenizer: Send {
     fn tokenize(&self, text: &str) -> SpellcastResult<TokenStream>;
 
     /// Tokenize with an explicit context hint.
-    fn tokenize_with_context(&self, text: &str, context: TokenContext)
-    -> SpellcastResult<TokenStream>;
+    fn tokenize_with_context(
+        &self,
+        text: &str,
+        context: TokenContext,
+    ) -> SpellcastResult<TokenStream>;
 
     /// Detect the context of the given text.
     fn detect_context(&self, text: &str) -> TokenContext;

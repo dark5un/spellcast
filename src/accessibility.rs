@@ -19,21 +19,27 @@ impl AudioFeedback {
 
     /// Play a short ascending tone (enter dictation mode).
     pub fn enter_dictation(&self) {
-        if !self.enabled { return; }
+        if !self.enabled {
+            return;
+        }
         self.beep(440, 100); // A4, 100ms
         self.beep(660, 100); // E5, 100ms
     }
 
     /// Play a short descending tone (exit dictation mode).
     pub fn exit_dictation(&self) {
-        if !self.enabled { return; }
+        if !self.enabled {
+            return;
+        }
         self.beep(660, 100);
         self.beep(440, 100);
     }
 
     /// Play a distinct alert tone (kill switch activated).
     pub fn kill_switch(&self) {
-        if !self.enabled { return; }
+        if !self.enabled {
+            return;
+        }
         for _ in 0..3 {
             self.beep(880, 80);
         }
@@ -41,7 +47,9 @@ impl AudioFeedback {
 
     /// Play a soft chime (explain feature complete).
     pub fn explain_complete(&self) {
-        if !self.enabled { return; }
+        if !self.enabled {
+            return;
+        }
         self.beep(523, 150); // C5
         self.beep(659, 150); // E5
         self.beep(784, 200); // G5
@@ -110,14 +118,30 @@ impl OnboardingStep {
 
     pub fn description(&self) -> &'static str {
         match self {
-            OnboardingStep::Welcome => "Welcome to Spellcast. I'll guide you through setup.\nPress Enter to start.",
-            OnboardingStep::MicrophoneTest => "Step 1: Testing your microphone.\nPlease say 'hello world' into your microphone.\nListening...",
-            OnboardingStep::GpuDetection => "Step 2: Detecting your GPU.\nSpellcast will auto-detect the best compute backend.",
-            OnboardingStep::ModelDownload => "Step 3: Downloading the ASR model.\nThis downloads Whisper base.en (~150MB).",
-            OnboardingStep::DictationTest => "Step 4: Dictation test.\nSay 'hello world' and see it appear as text.",
-            OnboardingStep::KeyBindings => "Step 5: Key bindings.\nCaps Lock toggles dictation. H/L navigate tokens.\nCtrl+Shift+Esc is the kill switch.",
-            OnboardingStep::KillSwitch => "Step 6: Test the kill switch.\nPress Ctrl+Shift+Escape now to confirm it works.",
-            OnboardingStep::Complete => "Setup complete! Spellcast is ready.\nYou can start dictating by pressing Caps Lock.",
+            OnboardingStep::Welcome => {
+                "Welcome to Spellcast. I'll guide you through setup.\nPress Enter to start."
+            }
+            OnboardingStep::MicrophoneTest => {
+                "Step 1: Testing your microphone.\nPlease say 'hello world' into your microphone.\nListening..."
+            }
+            OnboardingStep::GpuDetection => {
+                "Step 2: Detecting your GPU.\nSpellcast will auto-detect the best compute backend."
+            }
+            OnboardingStep::ModelDownload => {
+                "Step 3: Downloading the ASR model.\nThis downloads Whisper base.en (~150MB)."
+            }
+            OnboardingStep::DictationTest => {
+                "Step 4: Dictation test.\nSay 'hello world' and see it appear as text."
+            }
+            OnboardingStep::KeyBindings => {
+                "Step 5: Key bindings.\nCaps Lock toggles dictation. H/L navigate tokens.\nCtrl+Shift+Esc is the kill switch."
+            }
+            OnboardingStep::KillSwitch => {
+                "Step 6: Test the kill switch.\nPress Ctrl+Shift+Escape now to confirm it works."
+            }
+            OnboardingStep::Complete => {
+                "Setup complete! Spellcast is ready.\nYou can start dictating by pressing Caps Lock."
+            }
         }
     }
 }
@@ -127,6 +151,12 @@ pub struct OnboardingWizard {
     pub microphone_ok: bool,
     pub gpu_ok: bool,
     pub model_ok: bool,
+}
+
+impl Default for OnboardingWizard {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl OnboardingWizard {
@@ -166,9 +196,18 @@ impl OnboardingWizard {
     /// Render the current step as a status string.
     pub fn status_string(&self) -> String {
         let mut s = format!("\n{}\n\n", self.current_step.description());
-        s.push_str(&format!("Microphone: {}\n", if self.microphone_ok { "✓" } else { "○" }));
-        s.push_str(&format!("GPU:       {}\n", if self.gpu_ok { "✓" } else { "○" }));
-        s.push_str(&format!("Model:     {}\n", if self.model_ok { "✓" } else { "○" }));
+        s.push_str(&format!(
+            "Microphone: {}\n",
+            if self.microphone_ok { "✓" } else { "○" }
+        ));
+        s.push_str(&format!(
+            "GPU:       {}\n",
+            if self.gpu_ok { "✓" } else { "○" }
+        ));
+        s.push_str(&format!(
+            "Model:     {}\n",
+            if self.model_ok { "✓" } else { "○" }
+        ));
         s.push_str("\nPress Enter to continue, Esc to skip.");
         s
     }

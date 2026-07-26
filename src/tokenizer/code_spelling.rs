@@ -225,7 +225,10 @@ mod tests {
 
     #[test]
     fn test_snake_case() {
-        assert_eq!(apply_mode("foo bar baz", SpellingMode::Snake), "foo_bar_baz");
+        assert_eq!(
+            apply_mode("foo bar baz", SpellingMode::Snake),
+            "foo_bar_baz"
+        );
     }
 
     #[test]
@@ -240,7 +243,10 @@ mod tests {
 
     #[test]
     fn test_kebab_case() {
-        assert_eq!(apply_mode("foo bar baz", SpellingMode::Kebab), "foo-bar-baz");
+        assert_eq!(
+            apply_mode("foo bar baz", SpellingMode::Kebab),
+            "foo-bar-baz"
+        );
     }
 
     #[test]
@@ -253,17 +259,24 @@ mod tests {
 
     #[test]
     fn test_single_word() {
-        assert_eq!(apply_mode("foo bar baz", SpellingMode::SingleWord), "foobarbaz");
+        assert_eq!(
+            apply_mode("foo bar baz", SpellingMode::SingleWord),
+            "foobarbaz"
+        );
     }
 
     #[test]
     fn test_spelling_nato() {
-        assert_eq!(apply_mode("alpha bravo charlie", SpellingMode::Spelling), "abc");
+        assert_eq!(
+            apply_mode("alpha bravo charlie", SpellingMode::Spelling),
+            "abc"
+        );
     }
 
     #[test]
     fn test_spelling_full_alphabet() {
-        let input = "alpha bravo charlie delta echo foxtrot golf hotel india juliett kilo lima mike";
+        let input =
+            "alpha bravo charlie delta echo foxtrot golf hotel india juliett kilo lima mike";
         assert_eq!(apply_mode(input, SpellingMode::Spelling), "abcdefghijklm");
     }
 
@@ -278,7 +291,10 @@ mod tests {
         assert_eq!(parse_spelling_command("camel"), Some(SpellingMode::Camel));
         assert_eq!(parse_spelling_command("pascal"), Some(SpellingMode::Pascal));
         assert_eq!(parse_spelling_command("kebab"), Some(SpellingMode::Kebab));
-        assert_eq!(parse_spelling_command("spelling"), Some(SpellingMode::Spelling));
+        assert_eq!(
+            parse_spelling_command("spelling"),
+            Some(SpellingMode::Spelling)
+        );
         assert_eq!(parse_spelling_command("unknown"), None);
     }
 

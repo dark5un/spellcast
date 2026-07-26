@@ -95,9 +95,7 @@ impl VoiceActivityDetector {
             tmp
         };
 
-        let probs = model
-            .forward_chunk(&padded, self.config.sample_rate)
-            .ok()?;
+        let probs = model.forward_chunk(&padded, self.config.sample_rate).ok()?;
         Some(probs[[0, 0]])
     }
 
@@ -121,8 +119,10 @@ impl VoiceActivityDetector {
         let mut in_speech = false;
         let mut segment_start = 0;
         let mut silence_frames = 0u32;
-        let silence_threshold = self.config.min_silence_ms * self.config.sample_rate / 1000 / chunk_size as u32;
-        let min_speech_frames = self.config.min_speech_ms * self.config.sample_rate / 1000 / chunk_size as u32;
+        let silence_threshold =
+            self.config.min_silence_ms * self.config.sample_rate / 1000 / chunk_size as u32;
+        let min_speech_frames =
+            self.config.min_speech_ms * self.config.sample_rate / 1000 / chunk_size as u32;
 
         for (i, chunk) in audio.chunks(chunk_size).enumerate() {
             let padded = if chunk.len() == chunk_size {
@@ -135,13 +135,16 @@ impl VoiceActivityDetector {
 
             let prob = model.forward_chunk(&padded, self.config.sample_rate).ok();
 
-            let is_speech = prob.map(|p| p[[0, 0]] >= self.config.threshold).unwrap_or(false);
+            let is_speech = prob
+                .map(|p| p[[0, 0]] >= self.config.threshold)
+                .unwrap_or(false);
 
             if is_speech && !in_speech {
                 in_speech = true;
                 silence_frames = 0;
                 // Apply pre-padding
-                let pre_pad = (self.config.pre_padding_ms * self.config.sample_rate / 1000) as usize;
+                let pre_pad =
+                    (self.config.pre_padding_ms * self.config.sample_rate / 1000) as usize;
                 let pre_padded = if i * chunk_size > pre_pad {
                     i * chunk_size - pre_pad
                 } else {
@@ -155,7 +158,9 @@ impl VoiceActivityDetector {
                     let end = (frames + 1) * chunk_size
                         + (self.config.post_padding_ms * self.config.sample_rate / 1000) as usize;
                     let end = end.min(audio.len());
-                    if end > segment_start && (end - segment_start) > (min_speech_frames * chunk_size) as usize {
+                    if end > segment_start
+                        && (end - segment_start) > (min_speech_frames * chunk_size) as usize
+                    {
                         segments.push(SpeechSegment {
                             start_sample: segment_start,
                             end_sample: end,
@@ -200,9 +205,13 @@ impl VoiceActivityDetector {
     /// Check if the VAD engine is loaded and ready.
     pub fn is_ready(&self) -> bool {
         #[cfg(feature = "vad")]
-        { self.model.is_some() }
+        {
+            self.model.is_some()
+        }
         #[cfg(not(feature = "vad"))]
-        { false }
+        {
+            false
+        }
     }
 }
 

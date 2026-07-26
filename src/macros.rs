@@ -23,32 +23,128 @@ pub struct Emoticon {
 fn all_emoticons() -> Vec<Emoticon> {
     vec![
         // Prose / chat
-        Emoticon { trigger: "happy face", symbol: "😊", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "laugh", symbol: "😂", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "cry laughing", symbol: "😂", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "thumbs up", symbol: "👍", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "thumbs down", symbol: "👎", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "heart", symbol: "❤️", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "shrug", symbol: "¯\\_(ツ)_/¯", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "fire", symbol: "🔥", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "100", symbol: "💯", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "party", symbol: "🎉", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "sad face", symbol: "😢", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "wink", symbol: "😉", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "cool", symbol: "😎", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "skull", symbol: "💀", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "poop", symbol: "💩", contexts: &["prose", "chat"] },
+        Emoticon {
+            trigger: "happy face",
+            symbol: "😊",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "laugh",
+            symbol: "😂",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "cry laughing",
+            symbol: "😂",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "thumbs up",
+            symbol: "👍",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "thumbs down",
+            symbol: "👎",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "heart",
+            symbol: "❤️",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "shrug",
+            symbol: "¯\\_(ツ)_/¯",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "fire",
+            symbol: "🔥",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "100",
+            symbol: "💯",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "party",
+            symbol: "🎉",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "sad face",
+            symbol: "😢",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "wink",
+            symbol: "😉",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "cool",
+            symbol: "😎",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "skull",
+            symbol: "💀",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "poop",
+            symbol: "💩",
+            contexts: &["prose", "chat"],
+        },
         // Code (emoji-free, but keep some markers)
-        Emoticon { trigger: "todo", symbol: "TODO:", contexts: &["code"] },
-        Emoticon { trigger: "fix me", symbol: "FIXME:", contexts: &["code"] },
-        Emoticon { trigger: "hack", symbol: "HACK:", contexts: &["code"] },
-        Emoticon { trigger: "note", symbol: "NOTE:", contexts: &["code"] },
-        Emoticon { trigger: "warn", symbol: "WARN:", contexts: &["code"] },
-        Emoticon { trigger: "xyz", symbol: "XYZ:", contexts: &["code"] },
+        Emoticon {
+            trigger: "todo",
+            symbol: "TODO:",
+            contexts: &["code"],
+        },
+        Emoticon {
+            trigger: "fix me",
+            symbol: "FIXME:",
+            contexts: &["code"],
+        },
+        Emoticon {
+            trigger: "hack",
+            symbol: "HACK:",
+            contexts: &["code"],
+        },
+        Emoticon {
+            trigger: "note",
+            symbol: "NOTE:",
+            contexts: &["code"],
+        },
+        Emoticon {
+            trigger: "warn",
+            symbol: "WARN:",
+            contexts: &["code"],
+        },
+        Emoticon {
+            trigger: "xyz",
+            symbol: "XYZ:",
+            contexts: &["code"],
+        },
         // ASCII art
-        Emoticon { trigger: "flip table", symbol: "(╯°□°)╯︵┻━┻", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "bear", symbol: "ʕ•ᴥ•ʔ", contexts: &["prose", "chat"] },
-        Emoticon { trigger: "cat", symbol: "=^_^=", contexts: &["prose", "chat"] },
+        Emoticon {
+            trigger: "flip table",
+            symbol: "(╯°□°)╯︵┻━┻",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "bear",
+            symbol: "ʕ•ᴥ•ʔ",
+            contexts: &["prose", "chat"],
+        },
+        Emoticon {
+            trigger: "cat",
+            symbol: "=^_^=",
+            contexts: &["prose", "chat"],
+        },
     ]
 }
 
@@ -145,7 +241,9 @@ impl EmoticonMacroManager {
 
     /// Check if a trigger is a known emoticon.
     pub fn is_emoticon(&self, trigger: &str) -> bool {
-        self.emoticons.iter().any(|e| e.trigger == trigger.to_lowercase().trim())
+        self.emoticons
+            .iter()
+            .any(|e| e.trigger == trigger.to_lowercase().trim())
     }
 }
 

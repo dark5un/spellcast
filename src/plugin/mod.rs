@@ -165,7 +165,7 @@ impl PluginManager {
 
     /// Dispatch `on_explain` to all plugins and return first match.
     pub fn on_explain(&mut self, explanation: &str, context: &str) -> Option<String> {
-        for (_, p) in self.plugins.iter_mut() {
+        for p in self.plugins.values_mut() {
             if let Some(result) = p.on_explain(explanation, context) {
                 return Some(result);
             }
@@ -176,7 +176,7 @@ impl PluginManager {
     /// Get all custom predictions from all plugins for a token.
     pub fn custom_predictions(&mut self, token: &Token) -> Vec<String> {
         let mut all = Vec::new();
-        for (_, p) in self.plugins.iter_mut() {
+        for p in self.plugins.values_mut() {
             all.extend(p.custom_predictions(token));
         }
         all
@@ -227,7 +227,12 @@ mod tests {
         let mut mgr = PluginManager::new("");
         mgr.load_builtins();
 
-        let token = Token { text: "lambda".into(), offset: 0, length: 6, token_type: TokenType::Word };
+        let token = Token {
+            text: "lambda".into(),
+            offset: 0,
+            length: 6,
+            token_type: TokenType::Word,
+        };
         let preds = mgr.custom_predictions(&token);
         assert!(preds.len() >= 3);
         assert!(preds.contains(&"lambda".to_string()));
@@ -275,7 +280,12 @@ mod tests {
     fn test_on_token_committed_no_panic() {
         let mut mgr = PluginManager::new("");
         mgr.load_builtins();
-        let token = Token { text: "test".into(), offset: 0, length: 4, token_type: TokenType::Word };
+        let token = Token {
+            text: "test".into(),
+            offset: 0,
+            length: 4,
+            token_type: TokenType::Word,
+        };
         mgr.on_token_committed(&token, &TokenContext::Prose);
         // Should not panic
         assert!(true);

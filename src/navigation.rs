@@ -222,9 +222,7 @@ impl NavigationState {
             return i + 1;
         }
         while i > 0 {
-            if tokens[i].token_type == TokenType::Whitespace
-                && tokens[i].text.contains('\n')
-            {
+            if tokens[i].token_type == TokenType::Whitespace && tokens[i].text.contains('\n') {
                 return if i + 1 < tokens.len() { i + 1 } else { i };
             }
             i -= 1;
@@ -236,9 +234,7 @@ impl NavigationState {
     fn line_end(&self, tokens: &[Token], index: usize) -> usize {
         let mut i = index;
         while i + 1 < tokens.len() {
-            if tokens[i].token_type == TokenType::Whitespace
-                && tokens[i].text.contains('\n')
-            {
+            if tokens[i].token_type == TokenType::Whitespace && tokens[i].text.contains('\n') {
                 return i.saturating_sub(1);
             }
             i += 1;
@@ -428,7 +424,7 @@ impl Default for FuzzySearcher {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tokenizer::{Token, TokenStream, TokenContext};
+    use crate::tokenizer::{Token, TokenContext, TokenStream};
 
     fn make_stream(tokens: Vec<(&str, TokenType)>) -> TokenStream {
         let mut pos = 0;
@@ -454,7 +450,11 @@ mod tests {
     fn test_prev_token() {
         let mut nav = NavigationState::new();
         nav.current_index = 2;
-        let stream = make_stream(vec![("a", TokenType::Word), ("b", TokenType::Word), ("c", TokenType::Word)]);
+        let stream = make_stream(vec![
+            ("a", TokenType::Word),
+            ("b", TokenType::Word),
+            ("c", TokenType::Word),
+        ]);
         nav.navigate(&stream, NavAction::PrevToken);
         assert_eq!(nav.current_index, 1);
     }
@@ -556,10 +556,7 @@ mod tests {
     #[test]
     fn test_fuzzy_search_no_matches() {
         let mut searcher = FuzzySearcher::new();
-        let stream = make_stream(vec![
-            ("alpha", TokenType::Word),
-            ("beta", TokenType::Word),
-        ]);
+        let stream = make_stream(vec![("alpha", TokenType::Word), ("beta", TokenType::Word)]);
         let matches = searcher.search(&stream, "zzz");
         assert!(matches.is_empty());
     }

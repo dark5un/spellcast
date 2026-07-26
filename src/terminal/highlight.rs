@@ -79,12 +79,7 @@ impl HighlightEngine {
 
     /// Generate ANSI sequences to remove a token highlight.
     #[allow(dead_code)]
-    pub fn unhighlight_token(
-        &self,
-        token: &Token,
-        row: u16,
-        col: u16,
-    ) -> String {
+    pub fn unhighlight_token(&self, token: &Token, row: u16, col: u16) -> String {
         format!(
             "{save}{goto}{text}{restore}",
             save = ansi::SAVE,
@@ -95,11 +90,7 @@ impl HighlightEngine {
     }
 
     /// Generate the predictions inline display below a token.
-    pub fn inline_predictions(
-        &self,
-        predictions: &[String],
-        row: u16,
-    ) -> String {
+    pub fn inline_predictions(&self, predictions: &[String], row: u16) -> String {
         if predictions.is_empty() {
             return String::new();
         }
@@ -111,12 +102,13 @@ impl HighlightEngine {
             .collect::<Vec<_>>()
             .join(" ");
 
+        let prediction_text = format!("  ╰─ {}", pred_line);
         format!(
             "{save}{goto}{clear}{text}{restore}",
             save = ansi::SAVE,
             goto = ansi::goto(row + 1, 1),
             clear = ansi::CLEAR_LINE,
-            text = format!("  ╰─ {}", pred_line),
+            text = prediction_text,
             restore = ansi::RESTORE,
         )
     }
@@ -203,10 +195,7 @@ mod tests {
 
     #[test]
     fn test_highlight_style_sequences() {
-        assert_eq!(
-            HighlightStyle::Reverse.sequences(),
-            ("\x1b[7m", "\x1b[0m")
-        );
+        assert_eq!(HighlightStyle::Reverse.sequences(), ("\x1b[7m", "\x1b[0m"));
         assert_eq!(
             HighlightStyle::Underline.sequences(),
             ("\x1b[4m", "\x1b[0m")

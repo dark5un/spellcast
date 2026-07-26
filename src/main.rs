@@ -40,11 +40,15 @@ fn main() -> anyhow::Result<()> {
 
     // Initialize logging
     if cli.verbose {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("spellcast=debug"))
-            .init();
+        env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("spellcast=debug"),
+        )
+        .init();
     } else {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("spellcast=info"))
-            .init();
+        env_logger::Builder::from_env(
+            env_logger::Env::default().default_filter_or("spellcast=info"),
+        )
+        .init();
     }
 
     info!("Spellcast v{} starting up", env!("CARGO_PKG_VERSION"));

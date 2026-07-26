@@ -34,15 +34,15 @@
 //! - **Memory**: Persistent SQLite database
 //! - **Terminal**: PTY wrapper + status bar rendering
 
+pub mod accessibility;
 pub mod asr;
 pub mod audio;
 pub mod backend;
-pub mod accessibility;
 pub mod config;
 pub mod error;
 pub mod explainer;
-pub mod memory;
 pub mod macros;
+pub mod memory;
 pub mod modes;
 pub mod navigation;
 pub mod plugin;
