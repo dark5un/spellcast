@@ -1,0 +1,41 @@
+[backend]
+type = "auto"
+
+[audio]
+sample_rate = 16000
+channels = 1
+device = "default"
+
+[asr]
+engine = "whisper-cpp"
+model_path = "~/.config/voxkey/models/ggml-base.en.bin"
+language = "en"
+
+[llm]
+engine = "mistral-rs"
+model_path = "Qwen/Qwen3-4B"
+max_tokens = 50
+
+[keys]
+mode_toggle = "CapsLock"
+caps_toggle = "Shift+CapsLock"
+prev_token = "h"
+next_token = "l"
+redictate = "r"
+delete_token = "x"
+explain = "e"
+kill_switch = "Ctrl+Shift+Escape"
+accept_prediction_1 = "1"
+accept_prediction_2 = "2"
+accept_prediction_3 = "3"
+
+[tokenizer]
+mode = "heuristic"
+default_context = "prose"
+
+[database]
+path = "~/.config/voxkey/voxkey.db"
+
+[languages]
+primary = "en"
+secondary = "none"
