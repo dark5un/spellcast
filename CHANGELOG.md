@@ -69,7 +69,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Heuristic code pattern matching with PascalCase output
 - 10 new tests
 
-#### Phase 2H: Emoticon & Macro System
+#### Phase 2K: Packaging & Distribution
+- Fedora RPM spec (`packaging/spellcast.spec`), Flatpak manifest, AppStream metadata
+- Arch Linux PKGBUILD for AUR
+- Model management CLI: `spellcast models download/list/update` with checksum verification
+- LLM model download support (Qwen2.5-1.5B)
+
+#### Phase 2L: Accessibility & UX Polish
+- Audio feedback tones for mode transitions (ascending/descending, kill switch alert, explain chime)
+- Screen reader events via speech-dispatcher and AT-SPI
+- Onboarding wizard: 7-step first-run setup (mic test, GPU detection, model download, key bindings, kill switch test)
+- 6 new tests
+
+#### Phase 2M: Plugin & Extension System
+- `SpellcastPlugin` trait with hooks: on_token_committed, on_token_navigated, on_explain, custom_predictions
+- PluginManager: load, register, unload, list, dispatch
+- Built-in plugins: MedicalDictionaryPlugin (ECG, EEG, MRI lookups), CodeSymbolsPlugin (lambda/arrow/function predictions)
+- Plugin discovery from `~/.config/spellcast/plugins/`
+- 10 new tests
+
+#### Feature Flags
 - **EmoticonMacroManager**: 24 built-in emoticons/emoji with context filtering (prose, chat, code categories). Voice-activated triggers for common expressions: happy face, shrug, flip table, TODO/FIXME markers.
 - **Macro system**: user-defined snippets with variable interpolation (`$DATE`, `$TIME`, `$FILE`) and cursor positioning.
 - CLI management: add, list, remove, find macros.

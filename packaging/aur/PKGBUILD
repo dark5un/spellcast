@@ -1,0 +1,68 @@
+# Maintainer: Panos <panos@onlyascii.io>
+# SPDX-License-Identifier: Apache-2.0
+
+pkgname=spellcast
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Dictation-first terminal keyboard multiplexer for Linux"
+arch=('x86_64' 'aarch64')
+url="https://github.com/dark5un/spellcast"
+license=('Apache')
+depends=(
+  'alsa-lib'
+  'pipewire'
+  'pipewire-alsa'
+  'pulseaudio'
+  'libpulse'
+  'sqlite'
+)
+makedepends=(
+  'rust'
+  'cargo'
+  'gcc'
+  'cmake'
+  'make'
+  'pkg-config'
+)
+optdepends=(
+  'cuda: NVIDIA GPU acceleration for Whisper ASR'
+  'pipewire-utils: Audio device troubleshooting'
+)
+source=("${url}/archive/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+validpgpkeys=('')
+
+prepare() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+}
+
+build() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+
+  # Build with CPU backend by default
+  export RUSTFLAGS="${RUSTFLAGS} -C target-cpu=native"
+  cargo build --release --features cpu
+}
+
+check() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  cargo test --release --features cpu
+}
+
+package() {
+  cd "${srcdir}/${pkgname}-${pkgver}"
+
+  # Install binary
+  install -Dm0755 target/release/spellcast "${pkgdir}/usr/bin/spellcast"
+
+  # Install default configuration as example
+  install -Dm0644 config/default-config.toml \
+    "${pkgdir}/usr/share/spellcast/config.toml.example"
+
+  # Install license
+  install -Dm0644 LICENSE "${pkgdir}/usr/share/licenses/spellcast/LICENSE"
+
+  # Install documentation
+  install -Dm0644 README.md "${pkgdir}/usr/share/doc/spellcast/README.md"
+  install -Dm0644 CHANGELOG.md "${pkgdir}/usr/share/doc/spellcast/CHANGELOG.md"
+}

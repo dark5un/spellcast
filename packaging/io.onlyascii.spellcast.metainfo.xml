@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<component type="console-application">
+  <id>io.onlyascii.spellcast</id>
+  <metadata_license>Apache-2.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Spellcast</name>
+  <summary>Dictation-first terminal keyboard multiplexer for Linux</summary>
+  <description>
+    <p>
+      Spellcast is a dictation-first terminal keyboard multiplexer for Linux
+      that lets you speak your commands, code, and prose instead of typing them.
+      It provides token-aware speech-to-text with inline editing, phonetic
+      prediction, and a concept-to-word &quot;explain&quot; feature.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Two modes: Dictation (Caps Lock ON) and Raw passthrough (Caps Lock OFF)</li>
+      <li>Token navigation — move between tokens with H/L keys</li>
+      <li>Phonetic predictions — up to 3 alternatives ranked by phoneme distance</li>
+      <li>Explain feature — describe a concept verbally, get the right token</li>
+      <li>Kill switch (Ctrl+Shift+Escape) to immediately disable Spellcast</li>
+      <li>Local only — all processing runs on your machine, no cloud</li>
+      <li>GPU acceleration with CUDA (NVIDIA) and CPU backends, auto-detected</li>
+      <li>Persistent memory — learns from your corrections over time</li>
+    </ul>
+  </description>
+
+  <url type="homepage">https://github.com/dark5un/spellcast</url>
+  <url type="bugtracker">https://github.com/dark5un/spellcast/issues</url>
+  <url type="vcs-browser">https://github.com/dark5un/spellcast</url>
+
+  <provides>
+    <binary>spellcast</binary>
+  </provides>
+
+  <categories>
+    <category>Utility</category>
+    <category>AudioVideo</category>
+  </categories>
+
+  <keywords>
+    <keyword>dictation</keyword>
+    <keyword>speech</keyword>
+    <keyword>voice</keyword>
+    <keyword>terminal</keyword>
+    <keyword>multiplexer</keyword>
+    <keyword>speech-to-text</keyword>
+  </keywords>
+
+  <recommends>
+    <control>keyboard</control>
+    <sound>input</sound>
+  </recommends>
+
+  <releases>
+    <release version="0.1.0" date="2025-07-01">
+      <description>
+        <p>Initial release of Spellcast — dictation-first terminal keyboard multiplexer.</p>
+        <ul>
+          <li>Audio capture via cpal with ALSA/PipeWire backends</li>
+          <li>Whisper-based speech-to-text (CPU and CUDA backends)</li>
+          <li>PTY multiplexer with token navigation</li>
+          <li>Phonetic prediction engine</li>
+          <li>Concept-to-word explain feature (LLM-based)</li>
+          <li>Persistent correction memory via SQLite</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1" />
+</component>

@@ -37,6 +37,7 @@
 pub mod asr;
 pub mod audio;
 pub mod backend;
+pub mod accessibility;
 pub mod config;
 pub mod error;
 pub mod explainer;
@@ -44,6 +45,7 @@ pub mod memory;
 pub mod macros;
 pub mod modes;
 pub mod navigation;
+pub mod plugin;
 pub mod predictor;
 pub mod terminal;
 pub mod tokenizer;

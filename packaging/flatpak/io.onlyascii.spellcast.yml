@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Flatpak manifest for Spellcast
+#
+# Build:
+#   flatpak-builder --user --install build-dir io.onlyascii.spellcast.yml
+#
+# Run:
+#   flatpak run io.onlyascii.spellcast
+#
+id: io.onlyascii.spellcast
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: spellcast
+
+finish-args:
+  # X11 + Wayland
+  - --socket=x11
+  - --socket=wayland
+  # Audio capture (PipeWire / PulseAudio)
+  - --socket=pulseaudio
+  # D-Bus for session services
+  - --socket=session-bus
+  # File access: config and models
+  - --filesystem=~/.config/spellcast:create
+  # Shared memory for audio buffers
+  - --share=ipc
+  # Network access for model downloads (optional, used by download-models.sh)
+  - --share=network
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  build-args:
+    - --share=network
+  env:
+    CARGO_HOME: /run/build/spellcast/cargo
+    RUST_BACKTRACE: '1'
+
+modules:
+  - name: spellcast
+    buildsystem: simple
+    build-commands:
+      # Build with CPU backend (default)
+      - cargo --offline build --release --features cpu
+      # Install binary
+      - install -Dm0755 target/release/spellcast -t /app/bin/
+      # Install default configuration
+      - install -Dm0644 config/default-config.toml /app/share/spellcast/config.toml.example
+      # Install AppStream metadata
+      - install -Dm0644 packaging/io.onlyascii.spellcast.metainfo.xml
+        /app/share/metainfo/io.onlyascii.spellcast.metainfo.xml
+      # Install license
+      - install -Dm0644 LICENSE /app/share/licenses/spellcast/LICENSE
+
+    sources:
+      - type: dir
+        path: ../..
+        dest: spellcast
+        skip:
+          - target
+          - .git
+
+    build-options:
+      env:
+        RUSTFLAGS: '--remap-path-prefix=/run/build/spellcast=/app'
+
+  # Runtime dependencies that are bundled via cargo (rust crates)
+  # are handled by the offline build with vendored sources.
+  # System-level deps are provided by the Freedesktop runtime:
+  #   - ALSA, PipeWire, PulseAudio via runtime
+  #   - GLib, Pango, cairo etc. via runtime
+  #   - SQLite (bundled by rusqlite crate)
