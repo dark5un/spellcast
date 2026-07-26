@@ -18,7 +18,7 @@ Release:        1%{?dist}
 Summary:        Dictation-first terminal keyboard multiplexer for Linux
 
 License:        Apache-2.0
-URL:            https://github.com/dark5un/spellcast
+URL:            https://github.com/dark5un/spellcastv1
 Source0:        %{url}/archive/v%{version}/spellcast-%{version}.tar.gz
 
 # Rust edition 2024 requires at least Rust 1.85

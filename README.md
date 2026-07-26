@@ -33,8 +33,8 @@ This repository contains a **terminal PTY wrapper** — a working spike that int
 Run the setup script to create a distrobox container with all dependencies:
 
 ```bash
-git clone https://github.com/dark5un/spellcast.git
-cd spellcast
+git clone https://github.com/dark5un/spellcastv1.git
+cd spellcastv1
 
 # For NVIDIA GPU systems:
 ./scripts/setup-bazzite.sh --nvidia

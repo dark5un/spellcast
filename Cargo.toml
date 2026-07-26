@@ -5,7 +5,7 @@ edition = "2024"
 description = "Dictation-first terminal keyboard multiplexer for Linux"
 license = "Apache-2.0"
 authors = ["Panos"]
-repository = "https://github.com/dark5un/spellcast"
+repository = "https://github.com/dark5un/spellcastv1"
 keywords = ["dictation", "speech", "terminal", "multiplexer", "voice"]
 categories = ["command-line-utilities", "multimedia::audio"]
 
