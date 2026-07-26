@@ -22,9 +22,6 @@ log = "0.4"
 env_logger = "0.11"
 anyhow = "1"
 
-# Audio
-cpal = "0.18"
-
 # Terminal
 portable-pty = "0.9"
 crossterm = "0.29"
@@ -65,6 +62,7 @@ tree-sitter-md-025 = "0.5.6"
 silero = "0.6.0"
 mistralrs = "0.8.1"
 whisper-rs = "0.16.0"
+cpal = { version = "0.18.1", features = ["pipewire"] }
 
 [dev-dependencies]
 tempfile = "3"
