@@ -173,12 +173,20 @@ impl Macro {
 }
 
 fn chrono_now_date() -> String {
-    // Simple date string without chrono dependency
-    "2026-07-26".to_string()
+    // Use system date without chrono dependency
+    let output = std::process::Command::new("date").arg("+%Y-%m-%d").output();
+    match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => "unknown".to_string(),
+    }
 }
 
 fn chrono_now_time() -> String {
-    "10:30".to_string()
+    let output = std::process::Command::new("date").arg("+%H:%M").output();
+    match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => "unknown".to_string(),
+    }
 }
 
 /// The emoticon and macro manager.
@@ -344,8 +352,10 @@ mod tests {
         };
         let result = m.interpolate(Some("main.rs"));
         assert!(result.contains("main.rs"));
-        assert!(result.contains("2026-07-26"));
         assert!(result.contains("SPDX"));
+        // $DATE should be replaced with actual date (YYYY-MM-DD format)
+        // Check that the date pattern is present by looking for the year
+        assert!(result.contains("202") || result.contains("201"));
     }
 
     #[test]

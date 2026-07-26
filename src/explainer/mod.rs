@@ -108,18 +108,16 @@ impl Explainer {
         let explanation = explanation.trim().to_lowercase();
 
         // Step 1: Check local cache
-        if let Some(ref memory) = self.memory {
-            let explanation_hash = self.hash_explanation(&explanation);
-            if let Some(cached) = memory.lookup_explained(&explanation_hash)?
-                && cached.usage_count > 0
-            {
-                log::info!("Explain: cache hit for '{}'", explanation);
-                return Ok(ExplainResult {
-                    token: cached.token,
-                    source: ExplainSource::LocalCache,
-                    confidence: 0.9,
-                });
-            }
+        if let Some(ref memory) = self.memory
+            && let Some(cached) = memory.lookup_explained(&explanation)?
+            && cached.usage_count > 0
+        {
+            log::info!("Explain: cache hit for '{}'", explanation);
+            return Ok(ExplainResult {
+                token: cached.token,
+                source: ExplainSource::LocalCache,
+                confidence: 0.9,
+            });
         }
 
         // Step 2: LLM fallback

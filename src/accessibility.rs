@@ -55,11 +55,10 @@ impl AudioFeedback {
         self.beep(784, 200); // G5
     }
 
-    fn beep(&self, _freq: u32, duration_ms: u32) {
-        // Write BEL character for terminal bell (simplest cross-platform approach)
+    fn beep(&self, freq: u32, duration_ms: u32) {
+        log::debug!("BEEP: freq={freq}Hz duration={duration_ms}ms");
         let _ = io::stdout().write_all(b"\x07");
         let _ = io::stdout().flush();
-        // In production, use cpal or a dedicated tone generator
         std::thread::sleep(std::time::Duration::from_millis(duration_ms as u64));
     }
 }
@@ -83,7 +82,7 @@ impl ScreenReaderEvents {
         // Try speech-dispatcher first (spd-say)
         let _ = std::process::Command::new("spd-say")
             .args(["-t", "female3", text])
-            .output();
+            .spawn();
         // Fallback: write to stderr (Orca reads from terminal output)
         let _ = writeln!(io::stderr(), "{}", text);
     }
